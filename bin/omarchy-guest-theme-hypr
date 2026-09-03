@@ -10,7 +10,9 @@
 # without a reload. Run it from a `theme-set` hook.
 set -euo pipefail
 
-palette="${OMARCHY_STATE:-$HOME/.local/state/omarchy}/current/theme/colors.toml"
+theme_dir="${OMARCHY_STATE:-$HOME/.local/state/omarchy}/current/theme"
+palette="$theme_dir/colors.toml"
+shell_toml="$theme_dir/shell.toml"
 out_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-guest"
 out="$out_dir/hypr-theme.lua"
 
@@ -18,8 +20,18 @@ out="$out_dir/hypr-theme.lua"
 
 key() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\?#\\([0-9A-Fa-f]\\{6\\}\\)\"\\?.*/\\1/p" "$palette" | head -1 | tr "A-F" "a-f"; }
 
-accent="$(key accent)"
-fg="$(key foreground)"
+# O tema DECLARA a borda que ele quer, numa secao [hyprland] do shell.toml:
+#
+#   active-border = "#3A403B"
+#   active-border-foreground = "#FFAA00"
+#
+# Usar isso ganha de derivar de accent+foreground, que era o que eu fazia antes:
+# a derivacao acerta por acaso e erra em tema que escolheu outra coisa. So caio
+# na paleta quando o tema nao diz nada.
+skey() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\?#\\([0-9A-Fa-f]\\{6\\}\\)\"\\?.*/\\1/p" "$shell_toml" 2>/dev/null | head -1 | tr "A-F" "a-f"; }
+
+accent="$(skey active-border-foreground)"; [[ -n $accent ]] || accent="$(key accent)"
+fg="$(skey active-border)";                [[ -n $fg ]] || fg="$(key foreground)"
 muted="$(key color8)"; [[ -n $muted ]] || muted="$(key color7)"
 
 [[ -n $accent ]] || { echo "paleta sem accent" >&2; exit 0; }

@@ -308,7 +308,7 @@ install_all() {
 
   section "Collector"
   local bdest="$HOME/.local/share/omarchy-guest/bin"
-  for helper in omarchy-guest-graph omarchy-guest-theme-hypr; do
+  for helper in omarchy-guest-graph omarchy-guest-theme-hypr omarchy-guest-theme-boot; do
     [[ -x $REPO/bin/$helper ]] || continue
     if ((dry)); then info "would install $helper -> $bdest"; else
       mkdir -p "$bdest"

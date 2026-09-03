@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""Repaint the boot splash and the login screen from the Omarchy palette.
+
+The terminal already follows the Omarchy theme and the window border now does
+too. These two do not: a Plymouth theme and an SDDM theme carry their colours
+as literals, and nothing rewrites them when the theme changes. Switching theme
+used to leave the machine consistent from the desktop up and stuck on whatever
+palette the boot chain was built with.
+
+Needs root for /usr/share, and rebuilds the initramfs, because a Plymouth theme
+lives inside it - editing the files on disk without rebuilding changes nothing
+at boot, which is the failure that looks like "it did not work".
+
+    omarchy-guest-theme-boot                 # repaint both, rebuild initramfs
+    omarchy-guest-theme-boot --dry-run       # print what would change
+    omarchy-guest-theme-boot --no-initramfs  # skip the rebuild (login only)
+    omarchy-guest-theme-boot --restore       # put the originals back
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path(os.path.expanduser("~"))
+THEME = Path(os.environ.get("OMARCHY_STATE", HOME / ".local/state/omarchy")) / "current/theme"
+BACKUP = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state")) / "omarchy-guest/boot-theme-orig"
+
+PLYMOUTH = Path("/usr/share/plymouth/themes/zednet")
+SDDM_CONF = Path("/usr/share/sddm/themes/sddm-astronaut-theme/Themes/zednet.conf")
+
+
+def read_key(path: Path, key: str) -> str:
+    """First `key = "#rrggbb"` in a toml, lowercased, without the hash."""
+    if not path.is_file():
+        return ""
+    pat = re.compile(rf'^{re.escape(key)}\s*=\s*"?#([0-9A-Fa-f]{{6}})"?', re.M)
+    m = pat.search(path.read_text(encoding="utf-8", errors="replace"))
+    return m.group(1).lower() if m else ""
+
+
+def palette() -> dict[str, str]:
+    """The roles these two surfaces need, taken from what the theme declares.
+
+    `shell.toml` is the theme's own statement about its surfaces, so it wins;
+    `colors.toml` is the fallback for a theme that only ships a palette.
+    """
+    shell, colors = THEME / "shell.toml", THEME / "colors.toml"
+    p = {
+        "bg":     read_key(shell, "background")   or read_key(colors, "background") or "0f0f0f",
+        "accent": read_key(shell, "text")         or read_key(colors, "accent")     or "ffaa00",
+        "text":   read_key(shell, "normal-color") or read_key(colors, "foreground") or "e0d4c2",
+        "urgent": read_key(shell, "active")       or read_key(colors, "color1")     or "ff4500",
+        "muted":  read_key(colors, "color8")      or read_key(colors, "color7")     or "6b6867",
+        "surface": read_key(colors, "color0")     or "",
+    }
+    if not p["surface"] or p["surface"] == p["bg"]:
+        # A form that is exactly the background has no edge. Lift it a little
+        # rather than inventing a hue.
+        r, g, b = (int(p["bg"][i:i+2], 16) for i in (0, 2, 4))
+        p["surface"] = "".join(f"{min(255, v + 14):02x}" for v in (r, g, b))
+    return p
+
+
+def as_floats(hexcolor: str) -> tuple[float, float, float]:
+    r, g, b = (int(hexcolor[i:i+2], 16) for i in (0, 2, 4))
+    return round(r / 255, 4), round(g / 255, 4), round(b / 255, 4)
+
+
+def backup_once(paths: list[Path]) -> None:
+    """Copy pristine files aside on the first run, never after.
+
+    Re-copying would capture an already-repainted file as the 'original' and
+    make --restore a no-op, which is the quiet way a restore path stops working.
+    """
+    BACKUP.mkdir(parents=True, exist_ok=True)
+    for p in paths:
+        dest = BACKUP / p.name
+        if p.is_file() and not dest.exists():
+            shutil.copy2(p, dest)
+
+
+def run_root(cmd: list[str], dry: bool) -> bool:
+    if dry:
+        print("    would run:", " ".join(cmd))
+        return True
+    res = subprocess.run(["sudo", "-n", *cmd], capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"    falhou: {' '.join(cmd)}", file=sys.stderr)
+        if res.stderr.strip():
+            print("   ", res.stderr.strip().splitlines()[0], file=sys.stderr)
+        return False
+    return True
+
+
+def write_root(path: Path, content: str, dry: bool) -> bool:
+    if dry:
+        print(f"    would write {path}")
+        return True
+    tmp = Path("/tmp") / f"omarchy-guest-{path.name}"
+    tmp.write_text(content, encoding="utf-8")
+    ok = run_root(["cp", str(tmp), str(path)], False)
+    tmp.unlink(missing_ok=True)
+    return ok
+
+
+def paint_sddm(p: dict[str, str], dry: bool) -> bool:
+    if not SDDM_CONF.is_file():
+        print("  sddm: tema zednet nao encontrado, pulando")
+        return False
+    backup_once([SDDM_CONF])
+    src = (BACKUP / SDDM_CONF.name).read_text(encoding="utf-8", errors="replace")
+
+    # Role by role, against the pristine copy - never against a file this script
+    # already touched, so repainting twice gives the same result as once.
+    mapping = {
+        "HeaderTextColor": p["accent"],
+        "DateTextColor": p["muted"],
+        "TimeTextColor": p["text"],
+        "FormBackgroundColor": p["surface"],
+        "BackgroundColor": p["bg"],
+        "DimBackgroundColor": p["bg"],
+        "LoginFieldBackgroundColor": p["surface"],
+        "PasswordFieldBackgroundColor": p["surface"],
+        "LoginFieldTextColor": p["text"],
+        "PasswordFieldTextColor": p["text"],
+        "UserIconColor": p["accent"],
+        "PasswordIconColor": p["accent"],
+        "PlaceholderTextColor": p["muted"],
+        "WarningColor": p["urgent"],
+        "LoginButtonTextColor": p["bg"],
+        "LoginButtonBackgroundColor": p["accent"],
+        "SystemButtonsIconsColor": p["muted"],
+        "SessionButtonTextColor": p["muted"],
+        "VirtualKeyboardButtonTextColor": p["muted"],
+    }
+    out, changed = src, 0
+    for key, val in mapping.items():
+        new, n = re.subn(rf'^({re.escape(key)}\s*=\s*)"#[0-9A-Fa-f]{{6}}"',
+                         rf'\g<1>"#{val}"', out, flags=re.M)
+        out, changed = new, changed + n
+    print(f"  sddm: {changed} cores")
+    return write_root(SDDM_CONF, out, dry)
+
+
+def paint_plymouth(p: dict[str, str], dry: bool) -> bool:
+    script = PLYMOUTH / "zednet.script"
+    if not script.is_file():
+        print("  plymouth: tema zednet nao encontrado, pulando")
+        return False
+    bars = [PLYMOUTH / n for n in ("bar-bg.png", "bar-chunk.png", "bar-fg.png")]
+    backup_once([script, *[b for b in bars if b.is_file()]])
+
+    src = (BACKUP / script.name).read_text(encoding="utf-8", errors="replace")
+    br, bg_, bb = as_floats(p["bg"])
+    mr, mg, mb = as_floats(p["muted"])
+    # Linha a linha, pulando comentario. A primeira versao usava re.sub no
+    # arquivo inteiro e reescreveu tambem o comentario que documentava a
+    # assinatura da API - trocou `SetBackgroundTopColor()` por valores, virando
+    # exemplo do estado atual em vez de documentacao.
+    def repinta(line: str) -> str:
+        if line.lstrip().startswith("#"):
+            return line
+        line = re.sub(r"Window\.SetBackground(Top|Bottom)Color\([^)]*\)",
+                      lambda m: f"Window.SetBackground{m.group(1)}Color({br}, {bg_}, {bb})", line)
+        return re.sub(r"Image\.Text\(text,\s*[\d.]+,\s*[\d.]+,\s*[\d.]+\)",
+                      f"Image.Text(text, {mr}, {mg}, {mb})", line)
+
+    out = "\n".join(repinta(l) for l in src.split("\n"))
+    print(f"  plymouth: fundo #{p['bg']}, texto #{p['muted']}, barra #{p['accent']}")
+    ok = write_root(script, out, dry)
+
+    # The progress bar is three solid strips, so recolouring is regenerating
+    # them at the same size rather than editing pixels.
+    try:
+        from PIL import Image
+    except ImportError:
+        print("    sem PIL: as barras ficam na cor antiga")
+        return ok
+    for bar in bars:
+        orig = BACKUP / bar.name
+        if not orig.exists():
+            continue
+        with Image.open(orig) as im:
+            size = im.size
+        color = p["surface"] if bar.name == "bar-bg.png" else p["accent"]
+        rgb = tuple(int(color[i:i+2], 16) for i in (0, 2, 4)) + (255,)
+        tmp = Path("/tmp") / bar.name
+        Image.new("RGBA", size, rgb).save(tmp)
+        if dry:
+            print(f"    would write {bar} ({color})")
+        else:
+            ok = run_root(["cp", str(tmp), str(bar)], False) and ok
+        tmp.unlink(missing_ok=True)
+    return ok
+
+
+def restore(dry: bool) -> int:
+    if not BACKUP.is_dir():
+        print("nada para restaurar")
+        return 0
+    targets = {"zednet.conf": SDDM_CONF, "zednet.script": PLYMOUTH / "zednet.script"}
+    for name in ("bar-bg.png", "bar-chunk.png", "bar-fg.png"):
+        targets[name] = PLYMOUTH / name
+    for name, dest in targets.items():
+        src = BACKUP / name
+        if src.exists():
+            print(f"  {dest}")
+            if not dry:
+                run_root(["cp", str(src), str(dest)], False)
+    print("restaurado. rode com --no-initramfs se so quer o login,")
+    print("ou 'sudo mkinitcpio -P' para o boot voltar tambem.")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--no-initramfs", action="store_true")
+    ap.add_argument("--restore", action="store_true")
+    args = ap.parse_args(argv)
+
+    if args.restore:
+        return restore(args.dry_run)
+
+    if not THEME.is_dir():
+        print(f"sem tema do Omarchy em {THEME}", file=sys.stderr)
+        return 1
+
+    p = palette()
+    name = (THEME.parent / "theme.name")
+    print(f"tema: {name.read_text().strip() if name.is_file() else '?'}")
+    print(f"  fundo #{p['bg']}  accent #{p['accent']}  texto #{p['text']}  "
+          f"apagado #{p['muted']}  aviso #{p['urgent']}")
+
+    ok = paint_sddm(p, args.dry_run)
+    ok = paint_plymouth(p, args.dry_run) and ok
+
+    if args.no_initramfs:
+        print("  initramfs: pulado (--no-initramfs). O login ja mudou; o boot nao.")
+    elif args.dry_run:
+        print("  initramfs: seria reconstruido")
+    else:
+        print("  initramfs: reconstruindo, demora ~1min...")
+        ok = run_root(["mkinitcpio", "-P"], False) and ok
+
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
