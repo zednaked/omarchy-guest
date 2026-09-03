@@ -53,7 +53,7 @@ def palette() -> dict[str, str]:
     shell, colors = THEME / "shell.toml", THEME / "colors.toml"
     p = {
         "bg":     read_key(shell, "background")   or read_key(colors, "background") or "0f0f0f",
-        "accent": read_key(shell, "text")         or read_key(colors, "accent")     or "ffaa00",
+        "accent": pick_identity(shell, colors),
         "text":   read_key(shell, "normal-color") or read_key(colors, "foreground") or "e0d4c2",
         "urgent": read_key(shell, "active")       or read_key(colors, "color1")     or "ff4500",
         "muted":  read_key(colors, "color8")      or read_key(colors, "color7")     or "6b6867",
@@ -65,6 +65,31 @@ def palette() -> dict[str, str]:
         r, g, b = (int(p["bg"][i:i+2], 16) for i in (0, 2, 4))
         p["surface"] = "".join(f"{min(255, v + 14):02x}" for v in (r, g, b))
     return p
+
+
+def saturation(hexcolor: str) -> float:
+    r, g, b = (int(hexcolor[i:i+2], 16) / 255 for i in (0, 2, 4))
+    hi, lo = max(r, g, b), min(r, g, b)
+    return 0.0 if hi == 0 else (hi - lo) / hi
+
+
+def pick_identity(shell: Path, colors: Path) -> str:
+    """The theme's signature colour, chosen by saturation rather than by key.
+
+    There is no key that reliably holds it. Measured on two themes, the
+    candidates disagree in opposite directions:
+
+        demon      bar.text #ffaa00 (the identity)   accent #5c624b (drab)
+        city-783   bar.text #b9bec6 (neutral)        accent #ad2222 (the identity)
+
+    Picking either key by name is right on one theme and washes out the other.
+    The saturated one is the identity and the flat ones are text, so taking the
+    most saturated candidate gets both right - and degrades sensibly on a theme
+    that is deliberately monochrome, where every candidate is flat anyway.
+    """
+    cands = [c for c in (read_key(shell, "text"), read_key(shell, "active"),
+                         read_key(colors, "accent")) if c]
+    return max(cands, key=saturation) if cands else "ffaa00"
 
 
 def as_floats(hexcolor: str) -> tuple[float, float, float]:
