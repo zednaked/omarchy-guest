@@ -8,24 +8,28 @@ import Quickshell.Io
 // por monitor, entao o que tem estado (contagem, timer, processo) mora aqui, e
 // o Panel.qml e so a vista.
 //
-// O motor NAO e nosso. Quem sabe contar pacote nesta maquina e o
-// `~/.local/lib/hyde/system.update.py` do HyDE, que tem backends por
-// gerenciador (`pm.py`) em vez de embrulhar um `pacman -Syu`. Ele ja publica
-// exatamente o que uma barra precisa:
+// O motor vem de `vendor/hyde-updater` (originalmente do HyDE, GPL-3 - ver o
+// NOTICE.md de la). Ele tem backend por gerenciador em vez de embrulhar um
+// `pacman -Syu`, e publica exatamente o que uma barra precisa:
 //
 //   status  -> imprime {"text","tooltip","class"} no formato do waybar E grava
-//              o inventario em $XDG_RUNTIME_DIR/hyde/update_info.json
+//              o inventario em $XDG_RUNTIME_DIR/omarchy-guest/update_info.json
 //   up      -> abre um terminal com o atualizador interativo
 //
-// Entao este plugin nao reimplementa contagem: le a saida dele. Isso e o
-// hibrido que o Thiago pediu - motor do HyDE, superficie do Omarchy - e tem a
-// vantagem de continuar funcionando se o HyDE ganhar suporte a mais um
-// gerenciador.
+// Entao este plugin nao reimplementa contagem: le a saida dele. O Omarchy nao
+// tem equivalente - o atualizador dele nao reporta inventario nenhum -, e por
+// isso esta parte vive no repo em vez de ser emprestada do host.
 Singleton {
   id: root
 
-  readonly property string engine: Quickshell.env("HOME") + "/.local/lib/hyde/system.update.py"
-  readonly property string cachePath: (Quickshell.env("XDG_RUNTIME_DIR") || "/run/user/1000") + "/hyde/update_info.json"
+  // Onde esta o motor. A ordem importa: a copia do omarchy-guest ganha da do
+  // HyDE, para a maquina nao depender do host estar instalado. O caminho do
+  // HyDE fica por ultimo so para quem ainda nao rodou `omarchy-guest install`.
+  //
+  // Nao da para testar existencia de arquivo daqui sem I/O sincrono, entao quem
+  // resolve e o `resolver` abaixo: um `sh -c` que imprime o primeiro que existe.
+  property string engine: ""
+  readonly property string cachePath: (Quickshell.env("XDG_RUNTIME_DIR") || "/run/user/1000") + "/omarchy-guest/update_info.json"
 
   // Total e detalhe por gerenciador. `managers` e uma lista de {name, count}.
   property int total: 0
@@ -70,7 +74,7 @@ Singleton {
   }
 
   function refresh() {
-    if (probe.running)
+    if (probe.running || root.engine === "")
       return
     root.checking = true
     probe.running = true
@@ -78,6 +82,31 @@ Singleton {
 
   function openUpdater() {
     updater.running = true
+  }
+
+  // Resolve o motor uma vez, no start. Sem ele o widget precisaria de um
+  // caminho cravado, que e justamente o acoplamento que a vendorizacao tirou.
+  Process {
+    id: resolver
+    running: true
+    command: ["sh", "-c",
+      "for c in \"$OMARCHY_GUEST_UPDATER\" " +
+      "\"$HOME/.local/share/omarchy-guest/updater/system.update.py\" " +
+      "\"$HOME/.local/lib/hyde/system.update.py\"; do " +
+      "[ -n \"$c\" ] && [ -f \"$c\" ] && { printf %s \"$c\"; exit 0; }; done"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var caminho = text.trim()
+        if (caminho === "") {
+          root.lastError = "nenhum system.update.py encontrado"
+          return
+        }
+        root.engine = caminho
+        root.loadCache()
+        root.refresh()
+      }
+    }
   }
 
   FileView {
@@ -186,8 +215,6 @@ Singleton {
     onTriggered: root.refresh()
   }
 
-  Component.onCompleted: {
-    root.loadCache()
-    root.refresh()
-  }
+  // Sem Component.onCompleted disparando consulta: quem inicia e o `resolver`,
+  // depois de saber onde o motor esta.
 }

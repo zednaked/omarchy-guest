@@ -283,6 +283,19 @@ install_all() {
     fi
   fi
 
+  section "Updater"
+  local udest="$HOME/.local/share/omarchy-guest/updater"
+  if [[ -d $REPO/vendor/hyde-updater ]]; then
+    if ((dry)); then info "would install updater -> $udest"; else
+      mkdir -p "$udest"; backup "$udest"
+      cp -r "$REPO"/vendor/hyde-updater/. "$udest/"
+      rm -rf "$udest/__pycache__" "$udest/package_managers/__pycache__"
+      ok "system.update.py + pm.py + package_managers/ (GPL-3, ver NOTICE.md)"
+      note "o widget e o menu procuram nesta ordem: \$OMARCHY_GUEST_UPDATER,"
+      note "$udest, e por ultimo o do HyDE"
+    fi
+  fi
+
   section "Hyprland snippets"
   info "hypr/*.lua are NOT copied: where they belong depends on who owns your"
   note "entry point. See docs/HOST-INVENTORY.md before wiring them in."

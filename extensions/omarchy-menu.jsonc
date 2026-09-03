@@ -26,7 +26,8 @@
   // Boa para o Omarchy, cega para o resto - nao diz quantos pacotes ha nem de
   // onde vem.
   //
-  // A PRIMEIRA linha passa a ser o atualizador do HyDE (`system.update.py`),
+  // A PRIMEIRA linha passa a ser o atualizador vendorizado em
+  // vendor/hyde-updater (originalmente do HyDE, GPL-3),
   // com backend por gerenciador, contagem por origem, e inventario publicado em
   // $XDG_RUNTIME_DIR/hyde/update_info.json - o mesmo arquivo que alimenta o
   // widget `zed.hyde-updates` na barra.
@@ -37,7 +38,7 @@
     "icon": "󰏔",
     "label": "System",
     "description": "Todos os pacotes, por origem, com o inventario do HyDE",
-    "action": "omarchy-launch-floating-terminal-with-presentation 'python3 $HOME/.local/lib/hyde/system.update.py interactive'"
+    "action": "omarchy-launch-floating-terminal-with-presentation 'sh -c \"for c in \\\"$OMARCHY_GUEST_UPDATER\\\" \\\"$HOME/.local/share/omarchy-guest/updater/system.update.py\\\" \\\"$HOME/.local/lib/hyde/system.update.py\\\"; do [ -n \\\"$c\\\" ] && [ -f \\\"$c\\\" ] && exec python3 \\\"$c\\\" interactive; done; echo nenhum atualizador encontrado; read _\"'"
   },
 
   // O atualizador do Omarchy nao foi removido: e a unica forma de atualizar o
