@@ -38,6 +38,9 @@ more thing that can behave differently on a machine you are not sitting at.
     plugins/        Omarchy shell plugins that make sense on a guest install
     extensions/     menu overrides (what to hide, what to replace)
     hypr/           Hyprland snippets, NOT installed automatically
+    hooks/          theme-set hook, installed into ~/.config/omarchy/hooks/
+    quadro/         starter documents for the board
+    vendor/         third-party code, with its own licence (see its NOTICE)
     lib/            the `o` helper shim
 
 ## Why this is not the same as "install Omarchy without wiping my disk"
@@ -66,6 +69,10 @@ tries to fix from the outside, without a fork.
   change survives `omarchy update`.
 - [`docs/HOST-INVENTORY.md`](docs/HOST-INVENTORY.md) - what still comes from the
   host, what is load-bearing, and the order that makes removing it possible.
+- [`docs/THEMING.md`](docs/THEMING.md) - which surfaces the Omarchy theme reaches
+  by itself, which it does not and why each one is different, and the traps that
+  make a theme change look like it half worked.
+- [`docs/QUADRO-FORMAT.md`](docs/QUADRO-FORMAT.md) - the board document format.
 
 ## What we already know
 
@@ -102,6 +109,12 @@ Short version:
   becomes a tab. Format in [`docs/QUADRO-FORMAT.md`](docs/QUADRO-FORMAT.md).
 - **`omarchy-guest-graph`** - reads the running machine and emits its ownership
   graph as JSON. Read-only; the board's machine map is generated from it.
+- **`omarchy-guest-theme-apply`** - makes the window border, the terminal and the
+  wallpaper follow the Omarchy theme. Instant, no root; wired to a `theme-set`
+  hook so it runs on every theme change.
+- **`omarchy-guest-theme-boot`** - the same for the boot splash and the login
+  screen. Needs root and rebuilds the initramfs, so it stays a manual command,
+  with `--dry-run`, `--no-initramfs` and `--restore`.
 
 ## Requirements
 

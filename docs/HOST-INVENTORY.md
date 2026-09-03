@@ -94,6 +94,10 @@ Not load-bearing in the "breaks the session" sense. Load-bearing in the "the
 desktop stops looking coherent" sense, which is why a guest install feels
 unfinished before this is decided.
 
+**Decided, on the reference machine:** the Omarchy theme owns the look and the
+host is driven from a `theme-set` hook. Surface by surface, with the traps, in
+[`THEMING.md`](THEMING.md).
+
 ---
 
 ## Not load-bearing: already replaced, or never used
@@ -117,6 +121,7 @@ Each step is independently reversible. Do not skip to the end.
 2. **Port the keybindings you actually miss**, after living on Omarchy's map.
 3. **Decouple the updater** into this project.
 4. **Replace the session daemons** that Omarchy does not cover.
-5. **Pick one theme owner** and drive the other from a hook.
+5. **Pick one theme owner** and drive the other from a hook - see
+   [`THEMING.md`](THEMING.md), which is this step done.
 6. Only then consider removing the host - and even then, the host being on disk
    costs nothing.

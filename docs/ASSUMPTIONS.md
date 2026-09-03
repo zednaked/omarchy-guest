@@ -156,9 +156,14 @@ paints wallpaper, GTK, cursor and its own launcher from somewhere else. It is
 entirely possible - and easy not to notice - to sit on two different themes at
 once.
 
-**Cost:** cosmetic, but it is the thing that makes a guest install feel unfinished.
+**Cost:** cosmetic, but it is the thing that makes a guest install feel
+unfinished - and it is not one problem. The terminal, the window border, the
+wallpaper, the login screen and the boot splash each miss the theme for a
+different reason.
 
-**Fix:** pick one owner and drive the other from a hook.
+**Fix:** pick one owner and drive the other from a hook. Worked through surface
+by surface, with the traps, in [`THEMING.md`](THEMING.md); `omarchy-guest-theme-apply`
+and `omarchy-guest-theme-boot` implement it.
 
 ---
 
