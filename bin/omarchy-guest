@@ -1,0 +1,253 @@
+#!/usr/bin/env bash
+# omarchy-guest - run the Omarchy shell as a guest, not as the owner.
+#
+# Only `doctor` exists so far, and it only reads. Nothing here writes to the
+# system.
+set -uo pipefail
+
+VERSION="0.1.0"
+
+# ---------------------------------------------------------------------------
+# output
+# ---------------------------------------------------------------------------
+if [[ -t 1 ]]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; RESET=$'\033[0m'
+  GREEN=$'\033[32m'; YELLOW=$'\033[33m'; RED=$'\033[31m'; BLUE=$'\033[34m'
+else
+  BOLD=""; DIM=""; RESET=""; GREEN=""; YELLOW=""; RED=""; BLUE=""
+fi
+
+ok()      { printf '  %s+%s %s\n'  "$GREEN"  "$RESET" "$*"; }
+warn()    { printf '  %s!%s %s\n'  "$YELLOW" "$RESET" "$*"; WARNS=$((WARNS+1)); }
+bad()     { printf '  %sx%s %s\n'  "$RED"    "$RESET" "$*"; PROBS=$((PROBS+1)); }
+info()    { printf '  %s-%s %s\n'  "$DIM"    "$RESET" "$*"; }
+note()    { printf '      %s%s%s\n' "$DIM" "$*" "$RESET"; }
+section() { printf '\n%s%s%s\n' "$BOLD" "$*" "$RESET"; }
+
+WARNS=0
+PROBS=0
+
+have() { command -v "$1" >/dev/null 2>&1; }
+running() { pgrep -x "$1" >/dev/null 2>&1; }
+
+# ---------------------------------------------------------------------------
+# doctor
+# ---------------------------------------------------------------------------
+doctor() {
+  printf '%somarchy-guest doctor%s  v%s\n' "$BOLD" "$RESET" "$VERSION"
+  printf '%sread-only: this command changes nothing%s\n' "$DIM" "$RESET"
+
+  # -- base ------------------------------------------------------------------
+  section "Base"
+
+  if [[ -f /etc/arch-release ]]; then
+    ok "Arch-based system"
+  else
+    warn "not an Arch system - untested territory"
+  fi
+
+  if have Hyprland; then
+    ok "Hyprland $(Hyprland --version 2>/dev/null | head -1 | awk '{print $2}')"
+  else
+    bad "Hyprland not found - the shell targets Hyprland"
+  fi
+
+  if have quickshell; then
+    ok "quickshell present"
+  else
+    bad "quickshell not installed - the Omarchy shell IS a quickshell config"
+    note "pacman -S quickshell (or the AUR build)"
+  fi
+
+  if have uwsm && [[ -n ${UWSM_FINALIZE_VARNAMES:-} ]]; then
+    warn "session is managed by uwsm"
+    note "whoever owns the entry point must call 'uwsm finalize', or systemd units"
+    note "that need the display come up without knowing which screen to draw on"
+  fi
+
+  # -- omarchy itself --------------------------------------------------------
+  section "Omarchy"
+
+  local omarchy_path=""
+  for candidate in "${OMARCHY_PATH:-}" "$HOME/.local/share/omarchy" /usr/share/omarchy; do
+    [[ -n $candidate && -d $candidate ]] || continue
+    omarchy_path="$candidate"
+    break
+  done
+
+  if [[ -n $omarchy_path ]]; then
+    ok "found at $omarchy_path"
+    if [[ -z ${OMARCHY_PATH:-} ]]; then
+      warn "OMARCHY_PATH is not exported in this environment"
+      note "their Lua falls back to /usr/share/omarchy; a checkout elsewhere is not found"
+      note "fix: OMARCHY_PATH=$omarchy_path in ~/.config/environment.d/"
+    else
+      ok "OMARCHY_PATH=$OMARCHY_PATH"
+    fi
+    [[ -d $omarchy_path/shell ]] && ok "shell sources present" || bad "no shell/ in $omarchy_path"
+    [[ -f $omarchy_path/default/hypr/helpers.lua ]] \
+      && ok "helper table 'o' available to load standalone" \
+      || warn "default/hypr/helpers.lua missing - the 'o' shim will not work"
+    if [[ ":$PATH:" != *":$omarchy_path/bin:"* ]]; then
+      warn "$omarchy_path/bin is not on PATH"
+      note "their commands call each other by bare name; without this, a shell"
+      note "restart kills the bar and cannot bring it back"
+    else
+      ok "their bin/ is on PATH"
+    fi
+  else
+    bad "no Omarchy checkout found"
+    note "clone it, or install the package, then re-run"
+  fi
+
+  # -- who owns the entry point ---------------------------------------------
+  section "Compositor config ownership"
+
+  local entry="${HYPRLAND_CONFIG:-}"
+  if [[ -n $entry ]]; then
+    warn "HYPRLAND_CONFIG=$entry"
+    note "this wins over ~/.config/hypr/. Editing hyprland.lua/conf does NOT"
+    note "change what loads first - that file is only an override layer."
+  else
+    if [[ -f $HOME/.config/hypr/hyprland.lua ]]; then
+      entry="$HOME/.config/hypr/hyprland.lua"
+      ok "entry point: ~/.config/hypr/hyprland.lua (Lua config)"
+    elif [[ -f $HOME/.config/hypr/hyprland.conf ]]; then
+      entry="$HOME/.config/hypr/hyprland.conf"
+      ok "entry point: ~/.config/hypr/hyprland.conf (classic config)"
+    else
+      bad "no Hyprland config found in ~/.config/hypr/"
+    fi
+  fi
+
+  # known config managers that take the entry point for themselves
+  local manager=""
+  [[ -d $HOME/.local/share/hypr && -f $HOME/.local/share/hypr/hyde.lua ]] && manager="HyDE"
+  [[ -d $HOME/.config/ml4w ]] && manager="${manager:+$manager, }ML4W"
+  [[ -d $HOME/.config/hypr/UserConfigs ]] && manager="${manager:+$manager, }JaKooLit"
+  [[ -d $HOME/.config/ags && -d $HOME/.config/hypr/hyprland ]] && manager="${manager:+$manager, }end-4"
+
+  if [[ -n $manager ]]; then
+    warn "another config manager is installed: $manager"
+    note "expect it to own the entry point and to start its own bar and daemons"
+  else
+    ok "no known third-party Hyprland config manager detected"
+  fi
+
+  # is the 'o' table reachable in the running session?
+  if have hyprctl && hyprctl version >/dev/null 2>&1; then
+    local probe="${XDG_RUNTIME_DIR:-/tmp}/omarchy-guest-probe.$$"
+    hyprctl eval "local f=io.open(\"$probe\",\"w\") f:write(tostring(o ~= nil)..\" \"..tostring(package and package.loaded and package.loaded[\"default.hypr.omarchy\"] ~= nil)) f:close() return true" >/dev/null 2>&1
+    if [[ -f $probe ]]; then
+      read -r has_o has_chain < "$probe"; rm -f "$probe"
+      [[ $has_o == "true" ]] && ok "helper table 'o' is defined in the running session" \
+                              || warn "helper table 'o' is NOT defined - Omarchy plugins calling o.bind will die"
+      [[ $has_chain == "true" ]] && ok "Omarchy's Hyprland chain is loaded" \
+                                  || info "Omarchy's Hyprland chain is not loaded (fine for shell-only use)"
+    else
+      info "could not probe the running session (Lua config not in use?)"
+    fi
+  else
+    info "no running Hyprland session to probe"
+  fi
+
+  # -- what is already running ----------------------------------------------
+  section "Collisions with what you already run"
+
+  local bars=()
+  for b in waybar ags eww; do running "$b" && bars+=("$b"); done
+  running quickshell && bars+=("quickshell")
+  if (( ${#bars[@]} > 1 )); then
+    bad "more than one bar is running: ${bars[*]}"
+    note "the Omarchy shell IS the quickshell one; disable the host's bar"
+  elif (( ${#bars[@]} == 1 )); then
+    ok "one bar running: ${bars[0]}"
+  else
+    info "no bar running"
+  fi
+
+  local notif=()
+  for n in dunst mako swaync; do running "$n" && notif+=("$n"); done
+  if (( ${#notif[@]} > 0 )); then
+    warn "notification daemon running: ${notif[*]}"
+    note "the Omarchy shell has its own; running both doubles every notification"
+  else
+    ok "no competing notification daemon"
+  fi
+
+  for pair in "hypridle:idle daemon" "hyprlock:lock screen" "swayidle:idle daemon" "swaylock:lock screen"; do
+    local proc="${pair%%:*}" what="${pair#*:}"
+    running "$proc" && info "host $what: $proc"
+  done
+
+  if running hyprpolkitagent || running polkit-kde-authentication-agent-1 || running polkit-gnome-authentication-agent-1; then
+    ok "a polkit agent is running"
+  else
+    warn "no polkit agent detected - GUI password prompts will fail silently"
+  fi
+
+  # -- lock screen -----------------------------------------------------------
+  section "Lock screen"
+
+  if [[ -f /etc/pam.d/omarchy-lock-password ]]; then
+    ok "/etc/pam.d/omarchy-lock-password exists"
+  else
+    warn "/etc/pam.d/omarchy-lock-password missing"
+    note "the Omarchy lock screen cannot authenticate without it"
+    note "fix: omarchy apply lock   (needs root, writes the PAM files)"
+    note "or keep your host's lock screen and leave omarchy.lock disabled"
+  fi
+
+  # -- what their autostart would launch -------------------------------------
+  if [[ -n $omarchy_path && -f $omarchy_path/default/hypr/autostart.lua ]]; then
+    section "What Omarchy's autostart would start"
+    grep -oE 'exec_cmd\((o\.launch\()?"[^"]+"' "$omarchy_path/default/hypr/autostart.lua" 2>/dev/null \
+      | sed -E 's/.*"([^"]+)".*/\1/' | while read -r cmd; do
+        first="${cmd%% *}"; first="${first##*/}"
+        # systemctl/dbus/sleep sao encanamento de sessao, nao daemon: acusar
+        # "ja rodando" neles e ruido, porque estao sempre de pe.
+        case "$first" in
+          systemctl|dbus-update-activation-environment|sleep|env|true)
+            info "$cmd  (session plumbing)"; continue ;;
+        esac
+        if running "$first"; then
+          warn "$cmd  (already running here)"
+        else
+          info "$cmd"
+        fi
+      done
+    note "as a guest you usually want only the shell from this list; the rest is"
+    note "your host's job and starting it twice is the classic guest bug"
+  fi
+
+  # -- verdict ---------------------------------------------------------------
+  section "Verdict"
+  if (( PROBS > 0 )); then
+    printf '  %s%d blocker(s)%s and %d warning(s).\n' "$RED" "$PROBS" "$RESET" "$WARNS"
+  elif (( WARNS > 0 )); then
+    printf '  %sno blockers%s, %d thing(s) to decide.\n' "$GREEN" "$RESET" "$WARNS"
+  else
+    printf '  %sclean%s - nothing here would collide.\n' "$GREEN" "$RESET"
+  fi
+  printf '  %sThe map of every assumption is in docs/ASSUMPTIONS.md%s\n' "$DIM" "$RESET"
+  echo
+}
+
+usage() {
+  cat <<'EOF'
+omarchy-guest - run the Omarchy shell as a guest, not as the owner
+
+usage:
+  omarchy-guest doctor     inspect this machine, change nothing
+  omarchy-guest version
+
+Nothing in this tool writes to your system yet.
+EOF
+}
+
+case "${1:-doctor}" in
+  doctor)  doctor ;;
+  version) echo "omarchy-guest $VERSION" ;;
+  -h|--help|help) usage ;;
+  *) usage; exit 1 ;;
+esac
