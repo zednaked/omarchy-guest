@@ -97,6 +97,11 @@ Short version:
   [`docs/MENU-OVERRIDES.md`](docs/MENU-OVERRIDES.md).
 - **`hypr/gaming.lua`** - a performance toggle, because the host had one and
   Omarchy does not.
+- **`zed.quadro`** - a board of Markdown documents, rendered as force-directed
+  graphs or prose. A folder of `.md` files, one tab each; drop a file in and it
+  becomes a tab. Format in [`docs/QUADRO-FORMAT.md`](docs/QUADRO-FORMAT.md).
+- **`omarchy-guest-graph`** - reads the running machine and emits its ownership
+  graph as JSON. Read-only; the board's machine map is generated from it.
 
 ## Requirements
 

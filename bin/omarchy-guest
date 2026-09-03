@@ -306,6 +306,35 @@ install_all() {
     fi
   fi
 
+  section "Collector"
+  local bdest="$HOME/.local/share/omarchy-guest/bin"
+  if [[ -x $REPO/bin/omarchy-guest-graph ]]; then
+    if ((dry)); then info "would install omarchy-guest-graph -> $bdest"; else
+      mkdir -p "$bdest"
+      cp "$REPO/bin/omarchy-guest-graph" "$bdest/"
+      chmod +x "$bdest/omarchy-guest-graph"
+      ok "omarchy-guest-graph (read-only; the Mapa de Posse overlay reads it)"
+    fi
+  fi
+
+  section "Quadro"
+  local qdir="$HOME/.local/share/omarchy-guest/quadro"
+  if [[ -d $REPO/quadro ]]; then
+    if ((dry)); then info "would seed $qdir with the starter documents"; else
+      mkdir -p "$qdir"
+      for f in "$REPO"/quadro/*.md; do
+        [[ -f $f ]] || continue
+        # nao sobrescreve documento que ja existe: a pasta e do usuario, e o
+        # que esta la pode ter sido escrito depois.
+        if [[ -e "$qdir/$(basename "$f")" ]]; then
+          info "$(basename "$f") ja existe, mantido"
+        else
+          cp "$f" "$qdir/"; ok "$(basename "$f")"
+        fi
+      done
+    fi
+  fi
+
   section "Hyprland snippets"
   info "hypr/*.lua are NOT copied: where they belong depends on who owns your"
   note "entry point. See docs/HOST-INVENTORY.md before wiring them in."

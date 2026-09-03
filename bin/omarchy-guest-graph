@@ -1,0 +1,300 @@
+#!/usr/bin/env python3
+"""Emit this machine's ownership graph as JSON.
+
+Same knowledge as `omarchy-guest doctor`, shaped for drawing instead of
+reading: who owns the compositor entry point, what each side starts, and what
+breaks if an owner leaves.
+
+Read-only. Runs no package manager, writes nothing, touches no config.
+
+    omarchy-guest-graph            # pretty JSON on stdout
+    omarchy-guest-graph --compact  # one line, for a shell plugin to parse
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path(os.path.expanduser("~"))
+
+# Owners, in the order they should be laid out. `host` is whatever config
+# manager already owned the machine; `guest` is the Omarchy shell running on
+# top; `ours` is what omarchy-guest adds.
+OWNERS = ["entry", "host", "guest", "ours"]
+
+
+def sh(*cmd: str) -> str:
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=6).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def running(name: str) -> bool:
+    return bool(sh("pgrep", "-x", name))
+
+
+class Graph:
+    def __init__(self) -> None:
+        self.nodes: list[dict] = []
+        self.links: list[dict] = []
+        self._ids: set[str] = set()
+
+    def node(self, nid: str, owner: str, kind: str, note: str,
+             risk: str = "", size: int = 6, hub: bool = False) -> str:
+        if nid in self._ids:
+            return nid
+        self._ids.add(nid)
+        self.nodes.append({
+            "id": nid, "owner": owner, "kind": kind, "note": note,
+            "risk": risk, "size": size, "hub": hub,
+        })
+        return nid
+
+    def link(self, a: str, b: str) -> None:
+        if a in self._ids and b in self._ids and a != b:
+            self.links.append({"a": a, "b": b})
+
+    def json(self) -> dict:
+        return {"owners": OWNERS, "nodes": self.nodes, "links": self.links}
+
+
+def detect_host() -> tuple[str, str]:
+    """Return (name, entry-file) of the config manager that owns the session."""
+    entry = os.environ.get("HYPRLAND_CONFIG", "")
+    candidates = {
+        "HyDE": HOME / ".local/share/hypr/hyde.lua",
+        "ML4W": HOME / ".config/ml4w",
+        "JaKooLit": HOME / ".config/hypr/UserConfigs",
+    }
+    for name, path in candidates.items():
+        if path.exists():
+            return name, entry or str(path)
+    if entry:
+        return Path(entry).stem, entry
+    return "", ""
+
+
+def collect() -> Graph:
+    g = Graph()
+    host_name, entry_file = detect_host()
+    host = host_name or "host"
+
+    # --- the entry point ----------------------------------------------------
+    env_entry = os.environ.get("HYPRLAND_CONFIG", "")
+    if env_entry:
+        g.node("HYPRLAND_CONFIG", "entry", "variable",
+               f"Decides which file Hyprland loads. Points at {Path(env_entry).name}, "
+               f"so {host} owns the session.",
+               risk="The blocker for any change of ownership. Remove the host "
+                    "without moving this and the next login has no session.",
+               size=13, hub=True)
+
+        # who sets it, and does it yield?
+        for cand in sorted((HOME / ".config/uwsm/env-hyprland.d").glob("*.sh")) if \
+                (HOME / ".config/uwsm/env-hyprland.d").is_dir() else []:
+            try:
+                text = cand.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if "HYPRLAND_CONFIG" not in text:
+                continue
+            yields = bool(re.search(r'HYPRLAND_CONFIG="?\$\{HYPRLAND_CONFIG:-', text))
+            g.node(cand.name, "entry", "file",
+                   "Sets the variable. " + (
+                       "Uses ${VAR:-default}, so it only assigns when unset - the host "
+                       "yields ownership to whoever gets there first. Inverting is one "
+                       "file that sorts earlier, not a rewrite."
+                       if yields else
+                       "Assigns unconditionally, so inverting ownership means editing "
+                       "this file or overriding it later in the load order."),
+                   size=8)
+            g.link("HYPRLAND_CONFIG", cand.name)
+    else:
+        g.node("hyprland.lua", "entry", "file",
+               "No HYPRLAND_CONFIG in the environment, so Hyprland loads "
+               "~/.config/hypr/ directly. Nothing is standing between you and the "
+               "entry point.", size=11, hub=True)
+
+    if entry_file:
+        name = Path(entry_file).name
+        g.node(name, "host", "file",
+               f"The real entry point. Loads the whole {host} stack and, near the end, "
+               "your own override file.", size=11, hub=True)
+        g.link("HYPRLAND_CONFIG", name)
+
+        user_cfg = HOME / ".config/hypr/hyprland.lua"
+        if user_cfg.exists() and str(user_cfg) != entry_file:
+            g.node("~/.config/hypr/hyprland.lua", "host", "file",
+                   "Not the root - the override layer the entry point loads last. "
+                   "Editing it never changes who is in charge.",
+                   risk="Mistaking this for the entry point loads both stacks at once: "
+                        "two bars, duplicate keybindings, both autostarts firing.",
+                   size=9)
+            g.link(name, "~/.config/hypr/hyprland.lua")
+
+    # --- keybindings --------------------------------------------------------
+    binds = sh("hyprctl", "binds", "-j")
+    if binds:
+        try:
+            data = json.loads(binds)
+            total = len(data)
+            dupes = len(data) - len({(b.get("modmask"), b.get("key") or b.get("keycode"))
+                                     for b in data})
+            g.node(f"{total} keybinds", "host", "config",
+                   f"Loaded right now. Omarchy ships a comparable set, so this is a swap, "
+                   f"not a loss - but a swap your fingers have to agree to."
+                   + (f" {dupes} combination(s) currently carry more than one binding."
+                      if dupes else ""),
+                   risk="Two stacks loaded at once shows up here first: a reload does not "
+                        "clear bindings from an earlier parse, only a fresh login does."
+                        if dupes else "",
+                   size=10)
+            if entry_file:
+                g.link(Path(entry_file).name, f"{total} keybinds")
+        except json.JSONDecodeError:
+            pass
+
+    # --- session daemons, and who covers them -------------------------------
+    # (process, label, what covers it on the Omarchy side, why it matters)
+    DAEMONS = [
+        ("hypridle", "idle daemon", "", "Idle and screen lock.",
+         "Omarchy's idle/lock plugins need a PAM file a fresh Arch does not have."),
+        ("hyprpolkitagent", "polkit agent", "", "The password dialog.",
+         "Without one, anything asking for a password in a GUI fails silently."),
+        ("wl-clip-persist", "clipboard persistence", "omarchy.clipboard",
+         "Keeps the clipboard alive after the app that copied it closes.", ""),
+        ("nm-applet", "network tray icon", "omarchy.network",
+         "Tray icon. Omarchy has a bar widget, which is a different thing.", ""),
+        ("blueman-applet", "bluetooth tray icon", "omarchy.bluetooth",
+         "Tray icon, same case as the network one.", ""),
+        ("hyprsunset", "blue light filter", "omarchy.nightlight",
+         "Colour temperature by time of day.", ""),
+    ]
+    for proc, label, covered, note, risk in DAEMONS:
+        if not running(proc):
+            continue
+        g.node(proc, "host", "process",
+               note + (f" Covered on the Omarchy side by {covered}." if covered
+                       else " Omarchy does not cover this."),
+               risk=risk, size=7 if covered else 8)
+        if entry_file:
+            g.link(Path(entry_file).name, proc)
+
+    # --- the Omarchy shell --------------------------------------------------
+    if running("quickshell"):
+        pss = ""
+        pid = sh("pgrep", "-x", "quickshell").split("\n")[0]
+        if pid.isdigit():
+            try:
+                roll = Path(f"/proc/{pid}/smaps_rollup").read_text()
+                kb = sum(int(m) for m in re.findall(r"^Pss:\s+(\d+)", roll, re.M))
+                pss = f" Resident right now: {kb // 1024} MB PSS."
+            except OSError:
+                pass
+        g.node("quickshell", "guest", "process",
+               "One process drawing the bar, notifications, OSD, overlays and menu." + pss
+               + " That single process is why the desktop feels consistent - and what it "
+                 "costs.",
+               size=13, hub=True)
+
+        for surface, replaced in [("bar", "waybar"), ("notifications", "dunst")]:
+            g.node(surface, "guest", "surface",
+                   f"Replaced the host's {replaced}."
+                   + ("" if not running(replaced)
+                      else f" WARNING: {replaced} is also running - both are drawing."),
+                   risk=(f"{replaced} is running at the same time. On this kind of setup "
+                         "that means the host's config is loading when it should not be.")
+                   if running(replaced) else "",
+                   size=8)
+            g.link("quickshell", surface)
+
+        g.node("menu", "guest", "surface",
+               "Super+Space. Several of its rows overwrite config files that a guest "
+               "install does not own.", size=8)
+        g.link("quickshell", "menu")
+
+    # --- shell plugins ------------------------------------------------------
+    shell_json = HOME / ".config/omarchy/shell.json"
+    ours_prefixes = ("zed.", "omarchy-guest")
+    if shell_json.exists():
+        try:
+            cfg = json.loads(shell_json.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            cfg = {}
+        seen: list[str] = []
+        for entry in cfg.get("plugins", []) or []:
+            if isinstance(entry, dict) and entry.get("id"):
+                seen.append(str(entry["id"]))
+        layout = (cfg.get("bar") or {}).get("layout") or {}
+        for section in ("left", "center", "right"):
+            for entry in layout.get(section, []) or []:
+                if isinstance(entry, dict) and entry.get("id"):
+                    seen.append(str(entry["id"]))
+        for pid in dict.fromkeys(seen):
+            if pid.startswith("omarchy."):
+                continue  # first-party, already implied by the shell node
+            owner = "ours" if pid.startswith(ours_prefixes) else "guest"
+            g.node(pid, owner, "plugin",
+                   "Third-party shell plugin." if owner == "guest"
+                   else "Ours - installed by omarchy-guest.", size=7)
+            if running("quickshell"):
+                g.link("quickshell", pid)
+
+    # --- what omarchy-guest itself contributes ------------------------------
+    updater = None
+    for cand in [os.environ.get("OMARCHY_GUEST_UPDATER", ""),
+                 str(HOME / ".local/share/omarchy-guest/updater/system.update.py"),
+                 str(HOME / ".local/lib/hyde/system.update.py")]:
+        if cand and Path(cand).is_file():
+            updater = cand
+            break
+    if updater:
+        ours = "omarchy-guest" in updater
+        g.node("update engine", "ours" if ours else "host", "code",
+               ("Vendored into omarchy-guest, so the package count works without the "
+                "host installed." if ours else
+                "Still the host's copy. `omarchy-guest install` brings it in-tree."),
+               risk="" if ours else
+                    "Remove the host and the package counter goes with it.",
+               size=9)
+
+    ext = HOME / ".config/omarchy/extensions/omarchy-menu.jsonc"
+    if ext.exists():
+        try:
+            body = ext.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            body = ""
+        hidden = len(re.findall(r'"when"\s*:\s*"false"', body))
+        g.node("menu overrides", "ours", "config",
+               f"{hidden} destructive row(s) hidden, and the updater swapped. "
+               "Survives `omarchy update`.", size=8)
+        g.link("menu", "menu overrides")
+
+    if shutil.which("omarchy-guest"):
+        g.node("omarchy-guest", "ours", "tool",
+               "doctor (read-only inspection) and install (copies plugins and overrides "
+               "into place, backing up first).", size=8)
+        g.link("omarchy-guest", "HYPRLAND_CONFIG")
+
+    return g
+
+
+def main(argv: list[str]) -> int:
+    g = collect()
+    payload = g.json()
+    if "--compact" in argv:
+        print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+    else:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

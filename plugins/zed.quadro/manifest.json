@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "zed.quadro",
+  "name": "Quadro",
+  "version": "1.0.0",
+  "author": "Thiago",
+  "license": "MIT",
+  "description": "A board of Markdown documents rendered as force-directed graphs or prose. Drop a .md in the folder and it becomes a tab.",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": { "overlay": "Quadro.qml" }
+}
