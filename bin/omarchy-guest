@@ -244,12 +244,22 @@ doctor() {
 # Every destination is backed up first, with a timestamp.
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Backups vao para FORA do diretorio de origem, sempre.
+#
+# A primeira versao gravava `<alvo>.bak.<data>` ao lado do alvo. Para
+# ~/.config/omarchy/plugins isso e lixo dentro de uma pasta que o shell varre e
+# observa: cada backup vira um candidato a plugin com o MESMO id do manifesto
+# do original. O carregador aqui ignorou, mas depender disso e sorte.
+BACKUP_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-guest/backups"
+
 backup() {
   local target="$1"
   [[ -e $target ]] || return 0
   local stamp; stamp="$(date +%Y%m%d-%H%M%S)"
-  cp -r "$target" "$target.bak.$stamp"
-  info "backup: $target.bak.$stamp"
+  local dest="$BACKUP_DIR/$stamp"
+  mkdir -p "$dest"
+  cp -r "$target" "$dest/"
+  info "backup: $dest/$(basename "$target")"
 }
 
 install_all() {
