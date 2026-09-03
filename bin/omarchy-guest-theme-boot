@@ -154,7 +154,8 @@ def paint_plymouth(p: dict[str, str], dry: bool) -> bool:
         print("  plymouth: tema zednet nao encontrado, pulando")
         return False
     bars = [PLYMOUTH / n for n in ("bar-bg.png", "bar-chunk.png", "bar-fg.png")]
-    backup_once([script, *[b for b in bars if b.is_file()]])
+    logo = PLYMOUTH / "logo.png"
+    backup_once([script, logo, *[b for b in bars if b.is_file()]])
 
     src = (BACKUP / script.name).read_text(encoding="utf-8", errors="replace")
     br, bg_, bb = as_floats(p["bg"])
@@ -196,6 +197,27 @@ def paint_plymouth(p: dict[str, str], dry: bool) -> bool:
             print(f"    would write {bar} ({color})")
         else:
             ok = run_root(["cp", str(tmp), str(bar)], False) and ok
+        tmp.unlink(missing_ok=True)
+
+    # O logo e a marca, e ficava na cor antiga enquanto tudo em volta mudava -
+    # que e pior que nao ter repintado nada. Ele e chapado (uma cor so, com o
+    # alfa fazendo o antialiasing), entao trocar so o RGB e preservar o canal
+    # alfa nao perde borda nem degrade.
+    logo_orig = BACKUP / "logo.png"
+    if logo_orig.exists():
+        rgb = tuple(int(p["accent"][i:i+2], 16) for i in (0, 2, 4))
+        with Image.open(logo_orig) as im:
+            im = im.convert("RGBA")
+            alpha = im.getchannel("A")
+            tinted = Image.new("RGBA", im.size, rgb + (0,))
+            tinted.putalpha(alpha)
+            tmp = Path("/tmp") / "logo.png"
+            tinted.save(tmp)
+        if dry:
+            print(f"    would write {logo} (#{p['accent']}, alfa preservado)")
+        else:
+            ok = run_root(["cp", str(tmp), str(logo)], False) and ok
+            print(f"    logo repintado #{p['accent']}")
         tmp.unlink(missing_ok=True)
     return ok
 
