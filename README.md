@@ -43,6 +43,15 @@ None of that is a bug. It is what an opinionated distro is allowed to assume.
 It just makes the shell unusable as a component, and that is what this project
 tries to fix from the outside, without a fork.
 
+## Documents
+
+- [`docs/ASSUMPTIONS.md`](docs/ASSUMPTIONS.md) - every place the shell assumes it
+  owns the machine, what breaks when it does not, and the cost.
+- [`docs/MENU-OVERRIDES.md`](docs/MENU-OVERRIDES.md) - the menu rows that
+  overwrite user config, and the supported way to disable or replace them so the
+  change survives `omarchy update`.
+- [`examples/`](examples/) - the actual override file from the reference machine.
+
 ## What we already know
 
 The map is in [`docs/ASSUMPTIONS.md`](docs/ASSUMPTIONS.md): every place the

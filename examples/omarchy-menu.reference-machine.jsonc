@@ -1,0 +1,89 @@
+{
+  // Extensoes do menu do Omarchy. Template comentado em
+  // $OMARCHY_PATH/config/omarchy/extensions/omarchy-menu.jsonc
+  //
+  // Reusar um id existente sobrescreve a entrada; ids pontuados definem o pai.
+  // `when` e condicao de shell: falhou, a linha some do menu.
+  //
+  // POR QUE AQUI E NAO NO MENU DELES: este arquivo nao e tocado pelo
+  // `omarchy update` nem pelas migrations. Conferido em 03/09/2026 - nenhuma
+  // migration menciona `extensions`, e o `omarchy-update` nao escreve em
+  // ~/.config/omarchy. Editar
+  // `$OMARCHY_PATH/default/omarchy/omarchy-menu.jsonc` funcionaria hoje e
+  // seria desfeito no proximo update deles.
+  //
+  // Esta maquina roda o shell do Omarchy como CONVIDADO, sobre o HyDE. Varias
+  // acoes do menu deles pressupoem ser donas da maquina, e algumas destroem
+  // config que aqui e de outro dono. Este arquivo faz duas coisas: troca o
+  // atualizador, e esconde o que quebra.
+
+  // ==========================================================================
+  // 1. Update: motor do HyDE no lugar do deles
+  // ==========================================================================
+  //
+  // O menu oficial tem "update.omarchy" chamando `omarchy-update`: atualiza o
+  // repositorio deles, roda migrations e no fim chama o gerenciador de pacotes.
+  // Boa para o Omarchy, cega para o resto - nao diz quantos pacotes ha nem de
+  // onde vem.
+  //
+  // A PRIMEIRA linha passa a ser o atualizador do HyDE (`system.update.py`),
+  // com backend por gerenciador, contagem por origem, e inventario publicado em
+  // $XDG_RUNTIME_DIR/hyde/update_info.json - o mesmo arquivo que alimenta o
+  // widget `zed.hyde-updates` na barra.
+  //
+  // A troca reusa o id `update.omarchy` em vez de criar um id novo de proposito:
+  // a ordem das linhas vem da ordem de definicao, entao id novo cairia no fim.
+  "update.omarchy": {
+    "icon": "󰏔",
+    "label": "System",
+    "description": "Todos os pacotes, por origem, com o inventario do HyDE",
+    "action": "omarchy-launch-floating-terminal-with-presentation 'python3 $HOME/.local/lib/hyde/system.update.py interactive'"
+  },
+
+  // O atualizador do Omarchy nao foi removido: e a unica forma de atualizar o
+  // checkout deles e rodar migration. Virou linha propria, com rotulo honesto.
+  "update.omarchy-repo": {
+    "icon": "",
+    "iconFont": "omarchy",
+    "label": "Omarchy (repo e migrations)",
+    "description": "Atualiza o checkout do Omarchy e roda as migrations dele",
+    "action": "omarchy-launch-floating-terminal-with-presentation omarchy-update"
+  },
+
+  // ==========================================================================
+  // 2. O que quebra este sistema, escondido
+  // ==========================================================================
+  //
+  // Todas com `when: "false"`, que sempre falha e some com a linha. Escondidas
+  // e nao so renomeadas porque o menu tem busca difusa: um "config" digitado
+  // rapido mais Enter e o suficiente para acionar.
+
+  // MAIS PERIGOSA. `omarchy-refresh-hyprland` sobrescreve, com os defaults
+  // deles: hyprland.lua, monitors.lua, looknfeel.lua, autostart.lua,
+  // bindings.lua e input.lua. Aqui o hyprland.lua e a camada de override do
+  // HyDE, o monitors.lua foi gerado pelo nwg-displays e o looknfeel.lua e
+  // escrito pelo Omaland. Acionar isso quebra a sessao no proximo login e
+  // apaga a configuracao dos tres.
+  "update.config.hyprland": { "when": "false" },
+
+  // `omarchy-refresh-shell` reseta o shell.json e roda `omarchy-bar defaults`:
+  // apaga o layout da barra e a lista de plugins - os seis de terceiro mais o
+  // zed.hyde-updates.
+  "update.config.shell": { "when": "false" },
+
+  // `omarchy-refresh-plymouth` e `omarchy-plymouth-reset` (este ultimo tambem
+  // chama `omarchy-refresh-sddm`) sobrescrevem o splash de boot e o tema do
+  // SDDM. Aqui os dois sao proprios: a identidade zednet no boot e o seletor de
+  // tema do SDDM feito a mao.
+  "update.config.plymouth": { "when": "false" },
+  "style.unlock": { "when": "false" },
+
+  // `omarchy-refresh-hyprsunset` sobrescreve ~/.config/hypr/hyprsunset.conf,
+  // que aqui e ajustado.
+  "update.config.hyprsunset": { "when": "false" },
+
+  // Reset de fabrica. Ja escondido pela condicao deles (exige raiz em btrfs, e
+  // aqui e ext4), mas nao custa deixar explicito: se o disco mudar um dia, a
+  // linha nao volta sozinha.
+  "setup.reset": { "when": "false" }
+}
