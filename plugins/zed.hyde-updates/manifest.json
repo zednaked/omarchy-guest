@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "zed.hyde-updates",
+  "name": "Atualizacoes do sistema",
+  "version": "1.0.0",
+  "author": "Thiago",
+  "license": "MIT",
+  "description": "Contador de pacotes a atualizar, por origem, com o motor de inventario do HyDE",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Atualizacoes",
+    "description": "Quantos pacotes ha para atualizar, separados por gerenciador; clique abre o atualizador",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

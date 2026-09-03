@@ -15,16 +15,30 @@ shell run on top of them.
 
 ## Status
 
-**Early.** Today this repo ships one thing that is worth running:
+**Early**, but no longer only documentation.
 
-    omarchy-guest doctor
+    omarchy-guest doctor              # read-only inspection, changes nothing
+    omarchy-guest install --dry-run   # show what would be written
+    omarchy-guest install             # copy plugins and menu overrides into place
 
-A read-only inspection of a machine that reports what would collide with a guest
-install: who owns the compositor config, which bar and notification daemon are
-running, whether the pieces Omarchy expects are present, and what it would try
-to start that you already have.
+`doctor` reports what would collide with a guest install: who owns the compositor
+config, which bar and notification daemon are running, whether the pieces Omarchy
+expects are present, and what its autostart would launch on top of what you
+already run.
 
-Nothing here writes to your system yet. `doctor` only reads.
+`install` copies this repo's pieces into `~/.config/omarchy/`, backing up every
+destination with a timestamp first. It copies rather than symlinks on purpose:
+the shell scans and watches the plugin directory, and a symlinked tree is one
+more thing that can behave differently on a machine you are not sitting at.
+
+## Layout
+
+    bin/            the CLI
+    docs/           the maps - read these first
+    plugins/        Omarchy shell plugins that make sense on a guest install
+    extensions/     menu overrides (what to hide, what to replace)
+    hypr/           Hyprland snippets, NOT installed automatically
+    lib/            the `o` helper shim
 
 ## Why this is not the same as "install Omarchy without wiping my disk"
 
@@ -50,7 +64,8 @@ tries to fix from the outside, without a fork.
 - [`docs/MENU-OVERRIDES.md`](docs/MENU-OVERRIDES.md) - the menu rows that
   overwrite user config, and the supported way to disable or replace them so the
   change survives `omarchy update`.
-- [`examples/`](examples/) - the actual override file from the reference machine.
+- [`docs/HOST-INVENTORY.md`](docs/HOST-INVENTORY.md) - what still comes from the
+  host, what is load-bearing, and the order that makes removing it possible.
 
 ## What we already know
 
@@ -70,6 +85,18 @@ Short version:
 | its autostart starts the bar | host may already run one | two bars |
 | nothing else runs a notification daemon | host usually does | duplicate notifications |
 | lock screen has its PAM file | fresh Arch does not | one command, needs root |
+
+## What ships here
+
+- **`zed.hyde-updates`** - a bar widget with a package count per source. Omarchy's
+  own updater reports no inventory, so this borrows the host's engine. See
+  [`docs/HOST-INVENTORY.md`](docs/HOST-INVENTORY.md) for why decoupling it is
+  next.
+- **Menu overrides** - hiding the rows that overwrite config a guest does not
+  own, and swapping the updater. See
+  [`docs/MENU-OVERRIDES.md`](docs/MENU-OVERRIDES.md).
+- **`hypr/gaming.lua`** - a performance toggle, because the host had one and
+  Omarchy does not.
 
 ## Requirements
 

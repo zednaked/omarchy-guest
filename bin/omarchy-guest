@@ -233,20 +233,85 @@ doctor() {
   echo
 }
 
+# ---------------------------------------------------------------------------
+# install - copy this repo's pieces into place
+# ---------------------------------------------------------------------------
+#
+# Copies, does not symlink. The shell scans the plugin directory and watches it
+# for changes; a symlinked tree is one more thing that can behave differently
+# between machines, and this has to work on a machine we are not sitting at.
+#
+# Every destination is backed up first, with a timestamp.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+backup() {
+  local target="$1"
+  [[ -e $target ]] || return 0
+  local stamp; stamp="$(date +%Y%m%d-%H%M%S)"
+  cp -r "$target" "$target.bak.$stamp"
+  info "backup: $target.bak.$stamp"
+}
+
+install_all() {
+  local dry=0
+  [[ ${1:-} == "--dry-run" ]] && dry=1
+
+  printf '%somarchy-guest install%s%s\n' "$BOLD" "$RESET" \
+    "$( ((dry)) && printf '  (dry run)' )"
+
+  section "Shell plugins"
+  local dest="$HOME/.config/omarchy/plugins"
+  for plugin in "$REPO"/plugins/*/; do
+    [[ -d $plugin ]] || continue
+    local name; name="$(basename "$plugin")"
+    if ((dry)); then info "would install $name -> $dest/$name"; else
+      mkdir -p "$dest"; backup "$dest/$name"
+      cp -r "$plugin" "$dest/"
+      ok "$name"
+    fi
+  done
+
+  section "Menu extension"
+  local ext="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
+  if [[ -f $REPO/extensions/omarchy-menu.jsonc ]]; then
+    if ((dry)); then info "would install $ext"; else
+      mkdir -p "$(dirname "$ext")"; backup "$ext"
+      cp "$REPO/extensions/omarchy-menu.jsonc" "$ext"
+      ok "omarchy-menu.jsonc"
+      warn "review it before trusting it - the hidden rows are chosen for the"
+      note "reference machine, and your host owns different files"
+    fi
+  fi
+
+  section "Hyprland snippets"
+  info "hypr/*.lua are NOT copied: where they belong depends on who owns your"
+  note "entry point. See docs/HOST-INVENTORY.md before wiring them in."
+
+  if ((dry)); then
+    echo; info "nothing was written"
+  else
+    section "Next"
+    info "omarchy restart shell   # saving alone does not rebuild live widgets"
+  fi
+  echo
+}
+
 usage() {
   cat <<'EOF'
 omarchy-guest - run the Omarchy shell as a guest, not as the owner
 
 usage:
-  omarchy-guest doctor     inspect this machine, change nothing
+  omarchy-guest doctor              inspect this machine, change nothing
+  omarchy-guest install [--dry-run] copy plugins and menu overrides into place
   omarchy-guest version
 
-Nothing in this tool writes to your system yet.
+`doctor` never writes. `install` backs up every destination first.
 EOF
 }
 
 case "${1:-doctor}" in
   doctor)  doctor ;;
+  install) shift; install_all "${1:-}" ;;
   version) echo "omarchy-guest $VERSION" ;;
   -h|--help|help) usage ;;
   *) usage; exit 1 ;;

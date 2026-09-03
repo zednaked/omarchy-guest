@@ -50,6 +50,43 @@
     "action": "omarchy-launch-floating-terminal-with-presentation omarchy-update"
   },
 
+
+  // --- Channel: a linha mais destrutiva do menu -----------------------------
+  //
+  // `omarchy-channel-set` NAO troca so um canal de pacote. Nesta maquina ele:
+  //
+  //   1. `omarchy-refresh-pacman` sobrescreve /etc/pacman.conf E
+  //      /etc/pacman.d/mirrorlist pelos do Omarchy, e roda
+  //      `sudo pacman -Syyuu --noconfirm` - o `-uu` permite DOWNGRADE, entao o
+  //      sistema inteiro pode ser rebaixado para a versao dos espelhos deles,
+  //      sem confirmacao;
+  //   2. instala os pacotes `omarchy` e `omarchy-settings` no sistema com
+  //      `--noconfirm --ask 4`, que aceita substituicao de pacote calado;
+  //   3. como aqui `OMARCHY_PATH` nao e /usr/share/omarchy, ele entra no ramo
+  //      `leaving_dev` e roda `omarchy-dev-unlink`, que escreve /etc/omarchy.conf
+  //      apontando para /usr/share/omarchy - orfanando o checkout em
+  //      ~/.local/share/omarchy, que e o que esta maquina usa;
+  //   4. termina com `omarchy-update -y`, migrations inclusas.
+  //
+  // Ou seja: uma linha de menu converte a maquina em Omarchy, sem pergunta.
+  // E ela aparece marcada como "dev" aqui, porque o `omarchy-channel-current`
+  // deduz dev de `OMARCHY_PATH != /usr/share/omarchy` - o que e verdade num
+  // convidado sem que ninguem tenha escolhido nada.
+  "update.channel.stable": { "when": "false" },
+  "update.channel.rc": { "when": "false" },
+  "update.channel.edge": { "when": "false" },
+  "update.channel.dev": { "when": "false" },
+
+  // No lugar do submenu, uma linha que so INFORMA. Canal e conceito de
+  // instalacao por pacote; aqui o Omarchy e um clone git, e o equivalente
+  // honesto e "em que branch esta o checkout e ele esta atrasado?".
+  "update.channel": {
+    "icon": "󰔫",
+    "label": "Checkout do Omarchy",
+    "description": "Mostra branch e commit do clone - nao troca canal, nao mexe em pacman",
+    "action": "omarchy-launch-floating-terminal-with-presentation 'sh -c \"cd \\\"$OMARCHY_PATH\\\" && git status -sb && echo && git log --oneline -5 && echo && read -p \\\"enter para fechar\\\" _\"'"
+  },
+
   // ==========================================================================
   // 2. O que quebra este sistema, escondido
   // ==========================================================================
