@@ -164,12 +164,31 @@ def paint_sddm(p: dict[str, str], dry: bool) -> bool:
         "SessionButtonTextColor": p["muted"],
         "VirtualKeyboardButtonTextColor": p["muted"],
     }
+    # A imagem de fundo tambem, e nao so as cores. `Background=` aponta para um
+    # PNG fixo dentro do tema: repintar as cores e deixar a foto antiga e a
+    # mesma metade-repintura que estragou o splash - a tela de login fica com
+    # paleta nova e imagem velha.
+    bg_img = ""
+    wanted = Path(os.path.expanduser("~/.local/state/omarchy/current/background")).resolve()
+    if wanted.is_file():
+        dest_name = "omarchy-current" + wanted.suffix
+        dest = SDDM_CONF.parent.parent / "Backgrounds" / dest_name
+        # SDDM roda como outro usuario, entao a imagem tem de morar dentro do
+        # tema (world-readable) e nao apontar para o $HOME.
+        if run_root(["cp", str(wanted), str(dest)], dry):
+            run_root(["chmod", "644", str(dest)], dry)
+            bg_img = f"Backgrounds/{dest_name}"
+
     out, changed = src, 0
     for key, val in mapping.items():
         new, n = re.subn(rf'^({re.escape(key)}\s*=\s*)"#[0-9A-Fa-f]{{6}}"',
                          rf'\g<1>"#{val}"', out, flags=re.M)
         out, changed = new, changed + n
-    print(f"  sddm: {changed} cores")
+    if bg_img:
+        out, n = re.subn(r'^(Background\s*=\s*)"[^"]*"', rf'\g<1>"{bg_img}"', out, flags=re.M)
+        print(f"  sddm: {changed} cores, fundo -> {bg_img}" if n else f"  sddm: {changed} cores")
+    else:
+        print(f"  sddm: {changed} cores")
     return write_root(SDDM_CONF, out, dry)
 
 
