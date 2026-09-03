@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# Apply the current Omarchy theme to the surfaces it does not reach by itself.
+#
+# Three of them, all user-level and instant - no root, no initramfs. The boot
+# splash and the login screen are the other two and live in
+# omarchy-guest-theme-boot, because those need both.
+#
+#   window border   the host's theme owns col.active_border, so switching the
+#                   Omarchy theme repainted the bar and left the border behind
+#   kitty           the theme ships a kitty.conf, but `omarchy theme set` refuses
+#                   to install it (kitty.conf is in its INSTALLED_THEME_DENIED
+#                   list, correctly - it would clobber the user's own config).
+#                   So the colours ship and nothing consumes them.
+#   wallpaper       the host's wallpaper daemon owns the screen; Omarchy only
+#                   records which image its theme wants
+#
+# Run from a theme-set hook. Safe to run twice.
+set -uo pipefail
+
+theme_dir="${OMARCHY_STATE:-$HOME/.local/state/omarchy}/current/theme"
+palette="$theme_dir/colors.toml"
+shell_toml="$theme_dir/shell.toml"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-guest"
+
+[[ -d $theme_dir ]] || { echo "sem tema do Omarchy em $theme_dir" >&2; exit 0; }
+
+hexkey() {  # hexkey <file> <key>
+  sed -n "s/^$2[[:space:]]*=[[:space:]]*\"\\?#\\([0-9A-Fa-f]\\{6\\}\\)\"\\?.*/\\1/p" "$1" 2>/dev/null |
+    head -1 | tr 'A-F' 'a-f'
+}
+
+# ---------------------------------------------------------------------------
+# 1. window border
+# ---------------------------------------------------------------------------
+# The theme DECLARES the border it wants, in a [hyprland] section of shell.toml.
+# Deriving it from accent+foreground - which is what this did first - happens to
+# match on some themes and is wrong on any theme that chose otherwise.
+# The theme does not declare a colour, it declares the whole gradient - up to
+# ten stops and an angle:
+#
+#   active-border = "#ad2222 #ad2222 ... #eceff2 ... 35deg"
+#
+# Reading only the first hex, which is what a plain key lookup gives you, throws
+# away the highlight stop and the angle and renders a flat border. Take the lot.
+grad_line() { sed -n "s/^$2[[:space:]]*=[[:space:]]*\"\\(.*\\)\".*/\\1/p" "$1" 2>/dev/null | head -1; }
+
+raw="$(grad_line "$shell_toml" active-border)"
+stops="$(printf '%s' "$raw" | grep -oE '#[0-9A-Fa-f]{6}' | tr 'A-F' 'a-f')"
+angle="$(printf '%s' "$raw" | grep -oE '[0-9]+deg' | head -1 | tr -d 'deg')"
+[[ -n $angle ]] || angle=45
+
+if [[ -z $stops ]]; then
+  a="$(hexkey "$palette" accent)"; f="$(hexkey "$palette" foreground)"
+  stops="$(printf '%s\n%s' "${a:-ffaa00}" "${f:-e0d4c2}")"
+fi
+muted="$(hexkey "$palette" color8)"; [[ -n $muted ]] || muted="$(hexkey "$palette" color7)"
+[[ -n $muted ]] || muted="$(printf '%s' "$stops" | head -1)"
+
+# Sem o `#`: o grep devolve `#ad2222` e o Hyprland quer `rgba(ad2222ff)`.
+# Deixar o hash dentro do rgba() da "invalid color" e o gradiente inteiro cai.
+lua_stops="$(printf '%s' "$stops" | tr -d '#' | sed 's/^/"rgba(/; s/$/ff)"/' | paste -sd, -)"
+
+if [[ -n $lua_stops ]]; then
+  mkdir -p "$state_dir"
+  # The gradient has to be a TABLE. `col.active_border = "rgba(..) rgba(..) 45deg"`
+  # - the string that works in hyprland.conf - is rejected by the Lua API with
+  # "invalid color".
+  cat > "$state_dir/hypr-theme.lua" <<LUA
+-- Gerado por omarchy-guest-theme-apply. Nao editar: reescrito a cada troca de
+-- tema. Carregado no fim do looknfeel.lua para ganhar do tema do host.
+hl.config({
+	general = {
+		col = {
+			active_border = {colors = {${lua_stops}}, angle = ${angle}},
+			inactive_border = {colors = {"rgba(${muted}aa)", "rgba(${muted}66)"}, angle = ${angle}},
+		},
+	},
+})
+LUA
+  # `hyprctl keyword` does not work here: with the Lua parser it answers
+  # "keyword can't work with non-legacy parsers. Use eval." Sending that to
+  # /dev/null is how it failed silently for an hour - the file was right and the
+  # live value never moved. `eval` on the generated file applies exactly what
+  # the next reload will.
+  if command -v hyprctl >/dev/null 2>&1; then
+    erro="$(hyprctl eval "dofile(\"$state_dir/hypr-theme.lua\")" 2>&1)"
+    [[ $erro == ok* ]] || echo "  borda:     nao aplicou ao vivo: $erro" >&2
+  fi
+  echo "  borda:     $(printf '%s' "$stops" | grep -c .) paradas, ${angle}deg"
+fi
+
+# ---------------------------------------------------------------------------
+# 2. kitty
+# ---------------------------------------------------------------------------
+kitty_out="$HOME/.config/kitty/current-theme.conf"
+theme_kitty="$theme_dir/kitty.conf"
+
+if [[ -f $theme_kitty ]]; then
+  # Only the colour keys. The theme's kitty.conf is a whole config - font,
+  # opacity, padding - and copying it wholesale is exactly what Omarchy refuses
+  # to do, for good reason.
+  { echo "# Gerado por omarchy-guest-theme-apply a partir do tema do Omarchy."
+    echo "# So as cores: o resto do kitty.conf do tema e config, nao paleta."
+    grep -E '^(background|foreground|cursor|cursor_text_color|selection_background|selection_foreground|color[0-9]+|active_tab_|inactive_tab_|active_border_color|inactive_border_color|bell_border_color|url_color)' "$theme_kitty"
+  } > "$kitty_out"
+  origem="kitty.conf do tema"
+elif [[ -f $palette ]]; then
+  # A theme that ships only a palette still has everything kitty needs.
+  { echo "# Gerado por omarchy-guest-theme-apply a partir do colors.toml."
+    for k in background foreground cursor selection_background selection_foreground; do
+      v="$(hexkey "$palette" "$k")"; [[ -n $v ]] && echo "$k #$v"
+    done
+    for i in $(seq 0 15); do
+      v="$(hexkey "$palette" "color$i")"; [[ -n $v ]] && echo "color$i #$v"
+    done
+  } > "$kitty_out"
+  origem="colors.toml"
+else
+  origem=""
+fi
+
+if [[ -n $origem ]]; then
+  # Kitty re-reads its config on SIGUSR1. No remote control needed, and it
+  # reaches every window that is already open - writing the file alone changes
+  # nothing in a running terminal, which is what "o kitty continua" looks like.
+  pkill -USR1 -x kitty 2>/dev/null
+  echo "  kitty:     $(grep -c . "$kitty_out") linhas de $origem, terminais recarregados"
+fi
+
+# ---------------------------------------------------------------------------
+# 3. wallpaper
+# ---------------------------------------------------------------------------
+# Omarchy records which image its theme wants; on this machine the host's
+# daemon is what actually paints it. Pointing the host at Omarchy's choice keeps
+# one daemon and makes the wallpaper follow the theme.
+bg="$(readlink -f "${OMARCHY_STATE:-$HOME/.local/state/omarchy}/current/background" 2>/dev/null)"
+if [[ -z $bg || ! -f $bg ]]; then
+  bg="$(find "$theme_dir/backgrounds" -maxdepth 1 -type f \( -name '*.jpg' -o -name '*.png' -o -name '*.webp' \) 2>/dev/null | sort | head -1)"
+fi
+
+if [[ -n $bg && -f $bg ]]; then
+  if [[ -x $HOME/.local/lib/hyde/wallpaper.sh ]]; then
+    "$HOME/.local/lib/hyde/wallpaper.sh" --set "$bg" >/dev/null 2>&1 &&
+      echo "  wallpaper: $(basename "$bg")"
+  else
+    echo "  wallpaper: sem wallpaper.sh do host; deixe o plugin omarchy.background ligado"
+  fi
+fi

@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# Ao trocar o tema do Omarchy, leva junto as superficies que nao seguem sozinhas.
+# Ao trocar o tema do Omarchy, leva junto as superficies que nao seguem sozinhas:
+# borda da janela, cores do kitty e wallpaper. Tudo nivel de usuario e instantaneo.
 #
-# A borda das janelas e barata e imediata. O boot e o login precisam de root e de
-# reconstruir o initramfs (~1min), entao NAO rodam aqui: um hook que pede senha
-# ou trava um minuto no meio de uma troca de tema e pior que a inconsistencia.
-# Para esses dois, rodar na mao:
-#
-#     omarchy-guest-theme-boot
-B="$HOME/.local/share/omarchy-guest/bin"
-exec "$B/omarchy-guest-theme-hypr"
+# O splash de boot e o SDDM NAO estao aqui: pedem root e um minuto de mkinitcpio,
+# e hook que pede senha ou trava no meio de uma troca de tema e pior que a
+# inconsistencia. Para esses, na mao: omarchy-guest-theme-boot
+exec "$HOME/.local/share/omarchy-guest/bin/omarchy-guest-theme-apply"
