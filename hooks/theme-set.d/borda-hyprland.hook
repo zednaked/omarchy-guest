@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Ao trocar o tema do Omarchy, repinta a borda das janelas do Hyprland junto.
+# Sem isto a barra muda de cor e a borda fica na do HyDE.
+exec "$HOME/.local/share/omarchy-guest/bin/omarchy-guest-theme-hypr"

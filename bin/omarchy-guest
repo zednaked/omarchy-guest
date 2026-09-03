@@ -308,14 +308,15 @@ install_all() {
 
   section "Collector"
   local bdest="$HOME/.local/share/omarchy-guest/bin"
-  if [[ -x $REPO/bin/omarchy-guest-graph ]]; then
-    if ((dry)); then info "would install omarchy-guest-graph -> $bdest"; else
+  for helper in omarchy-guest-graph omarchy-guest-theme-hypr; do
+    [[ -x $REPO/bin/$helper ]] || continue
+    if ((dry)); then info "would install $helper -> $bdest"; else
       mkdir -p "$bdest"
-      cp "$REPO/bin/omarchy-guest-graph" "$bdest/"
-      chmod +x "$bdest/omarchy-guest-graph"
-      ok "omarchy-guest-graph (read-only; the Mapa de Posse overlay reads it)"
+      cp "$REPO/bin/$helper" "$bdest/"
+      chmod +x "$bdest/$helper"
+      ok "$helper"
     fi
-  fi
+  done
 
   section "Quadro"
   local qdir="$HOME/.local/share/omarchy-guest/quadro"

@@ -5,8 +5,18 @@
   "version": "1.0.0",
   "author": "Thiago",
   "license": "MIT",
-  "description": "A board of Markdown documents rendered as force-directed graphs or prose. Drop a .md in the folder and it becomes a tab.",
-  "kinds": ["overlay"],
+  "description": "A board of Markdown documents rendered as force-directed graphs or prose. A bar mark lights up when something is written to it; the overlay only wakes when you open it.",
+  "kinds": ["bar-widget", "overlay"],
   "keepLoaded": true,
-  "entryPoints": { "overlay": "Quadro.qml" }
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "overlay": "Quadro.qml"
+  },
+  "barWidget": {
+    "displayName": "Quadro",
+    "description": "Marca na barra que acende quando ha documento novo no quadro",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
 }

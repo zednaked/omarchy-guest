@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Derive Hyprland's window colours from the Omarchy palette.
+#
+# The host's theme owns col.active_border, so switching the Omarchy theme
+# repaints the bar and leaves the window borders on the host's colour - the
+# visible half of running two theme systems that do not talk to each other.
+#
+# This writes a small Lua file that the user's looknfeel loads LAST, so it wins
+# over the host's theme, and applies the same values live so the change shows up
+# without a reload. Run it from a `theme-set` hook.
+set -euo pipefail
+
+palette="${OMARCHY_STATE:-$HOME/.local/state/omarchy}/current/theme/colors.toml"
+out_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-guest"
+out="$out_dir/hypr-theme.lua"
+
+[[ -f $palette ]] || { echo "sem paleta do Omarchy em $palette" >&2; exit 0; }
+
+key() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\?#\\([0-9A-Fa-f]\\{6\\}\\)\"\\?.*/\\1/p" "$palette" | head -1 | tr "A-F" "a-f"; }
+
+accent="$(key accent)"
+fg="$(key foreground)"
+muted="$(key color8)"; [[ -n $muted ]] || muted="$(key color7)"
+
+[[ -n $accent ]] || { echo "paleta sem accent" >&2; exit 0; }
+[[ -n $fg ]] || fg="$accent"
+[[ -n $muted ]] || muted="$accent"
+
+mkdir -p "$out_dir"
+# A forma importa. `col.active_border = "rgba(..) rgba(..) 45deg"` - a string que
+# funciona no hyprland.conf - e recusada pela API Lua com "invalid color". O
+# gradiente aqui e uma TABELA, com as cores em lista e o angulo separado, que e
+# como o proprio tema do host escreve (lua_state/hypr_theme.lua:19).
+cat > "$out" <<LUA
+-- Gerado por omarchy-guest-theme-hypr. Nao editar: reescrito a cada troca de
+-- tema do Omarchy. Carregado no fim do looknfeel.lua para ganhar do tema do host.
+hl.config({
+	general = {
+		col = {
+			active_border = {colors = {"rgba(${accent}ff)", "rgba(${fg}ff)"}, angle = 45},
+			inactive_border = {colors = {"rgba(${muted}aa)", "rgba(${muted}66)"}, angle = 45},
+		},
+	},
+})
+LUA
+
+# Aplica ao vivo tambem: o arquivo cobre o proximo login, isto cobre agora.
+if command -v hyprctl >/dev/null 2>&1; then
+  hyprctl keyword general:col.active_border "rgba(${accent}ff) rgba(${fg}ff) 45deg" >/dev/null 2>&1 || true
+  hyprctl keyword general:col.inactive_border "rgba(${muted}66)" >/dev/null 2>&1 || true
+fi
+
+echo "borda -> #${accent} / #${fg}"
