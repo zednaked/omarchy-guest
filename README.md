@@ -115,6 +115,11 @@ Short version:
 - **`omarchy-guest-theme-boot`** - the same for the boot splash and the login
   screen. Needs root and rebuilds the initramfs, so it stays a manual command,
   with `--dry-run`, `--no-initramfs` and `--restore`.
+- **`omarchy-guest-run`** and **`omarchy-guest-launch-shell`** - environment
+  wrappers. Omarchy's commands call each other by bare name, and the compositor
+  that was already running when the guest was installed does not have their
+  `bin/` on PATH until the next login. `run` wraps any of their commands;
+  `launch-shell` is what the host's autostart calls on `hyprland.start`.
 
 ## Requirements
 
@@ -122,6 +127,11 @@ Short version:
 - `quickshell`
 - an Omarchy checkout or package for the shell itself; this project does not
   vendor it
+
+The shell reads its palette from `~/.local/state/omarchy/current/theme`. On a
+machine that never ran Omarchy, populate it without touching the live session:
+
+    OMARCHY_THEME_HEADLESS=1 omarchy-theme-set tokyo-night
 
 ## License
 
