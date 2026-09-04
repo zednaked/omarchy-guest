@@ -123,6 +123,11 @@
   // num host HyDE esse arquivo e dele, ajustado ou nao.
   "update.config.hyprsunset": { "when": "false" },
 
+  // Com os cinco filhos de Update > Config escondidos (hyprland, shell,
+  // plymouth, hyprsunset, tmux), o pai viraria um submenu vazio apontando
+  // para o nada. Some junto.
+  "update.config": { "when": "false" },
+
   // Reset de fabrica. Em raiz ext4 a condicao deles ja esconde; em btrfs nao.
   // Explicito aqui, o disco pode mudar um dia e a linha nao volta sozinha.
   "setup.reset": { "when": "false" },
