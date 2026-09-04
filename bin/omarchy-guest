@@ -100,6 +100,26 @@ doctor() {
     note "clone it, or install the package, then re-run"
   fi
 
+  # -- runtime deps ----------------------------------------------------------
+  # O instalador deles traria ~150 pacotes; um guest quer so o que o shell e
+  # os comandos do menu invocam em runtime. Lista curada do que ja quebrou de
+  # verdade numa instalacao guest, com o recurso que cada falta leva junto.
+  section "Runtime deps (o instalador deles teria trazido)"
+  local dep_missing=()
+  local dep pkg what
+  for spec in     "gum:gum:plugin add, confirmacoes, e a moldura dos terminais do menu"     "xdg-terminal-exec:xdg-terminal-exec:toda linha de menu que abre um terminal"     "uwsm-app:uwsm:idem - o launcher deles passa por uwsm-app"     "qrencode:qrencode:painel Wi-Fi QR (omarchy.wifiqr)"     "wtype:wtype:colar arquivo do clipboard (omarchy.clipboard)"; do
+    dep="${spec%%:*}"; pkg="${spec#*:}"; pkg="${pkg%%:*}"; what="${spec##*:}"
+    if have "$dep"; then
+      ok "$dep"
+    else
+      warn "$dep falta - quebra: $what"
+      dep_missing+=("$pkg")
+    fi
+  done
+  if (( ${#dep_missing[@]} > 0 )); then
+    note "fix: sudo pacman -S --needed ${dep_missing[*]}"
+  fi
+
   # -- who owns the entry point ---------------------------------------------
   section "Compositor config ownership"
 
