@@ -65,6 +65,27 @@ Leave in whatever is genuinely absent on your machine. `update.config.tmux`, for
 instance, is harmless if you have no tmux config to lose - it just writes the
 default.
 
+## Rows that act on state the host owns
+
+A second category, found while living on the hybrid setup: rows that overwrite
+nothing but drive the Omarchy side of a feature whose owner on a guest is the
+host. The failure is silent state, not lost files:
+
+| row id | what it does | what goes wrong as a guest |
+|---|---|---|
+| `system.lock` | `omarchy-shell lock lock` | with `omarchy.lock` disabled (no PAM), the IPC is a no-op: **the Lock row locks nothing**, and says nothing. False security - the worst row in the menu |
+| `trigger.toggle.idle-lock` | re-enables `omarchy.idle` | two idle daemons - theirs and the host's - each with its own idea of when to lock |
+| `system.screensaver`, `trigger.toggle.screensaver` | ttfx + their idle plugin | both absent/disabled on a guest; dead rows |
+| `update.process.hyprsunset` | kills and relaunches hyprsunset | the daemon survives, but orphaned from the host unit that supervises it |
+| `setup.direct-boot` | writes an EFI entry for the **Omarchy UKI** | boot-chain takeover on a machine that boots the host's path |
+| `style.hyprland` | opens `looknfeel.lua` in the editor | that file only exists on an Omarchy-owned Hyprland; the honest layer to edit is the user's `hyprland.lua` |
+
+Where the host has an equivalent, **replace** the row (same icon and label,
+honest action): `system.lock` becomes the host's locker, `Stay Awake` becomes
+stop/start of the host's idle unit. Where it does not, hide. The reference
+override file's section 3 does both - the unit names are the host's, so adapt
+them to yours.
+
 ## Replacing a row instead of hiding it
 
 Same mechanism, with an `action`. Reusing the id also **keeps the row's

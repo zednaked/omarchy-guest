@@ -125,5 +125,67 @@
 
   // Reset de fabrica. Em raiz ext4 a condicao deles ja esconde; em btrfs nao.
   // Explicito aqui, o disco pode mudar um dia e a linha nao volta sozinha.
-  "setup.reset": { "when": "false" }
+  "setup.reset": { "when": "false" },
+
+  // ==========================================================================
+  // 3. Sessao hibrida: lock, idle e daemons sao do HOST
+  // ==========================================================================
+  //
+  // A regra destas linhas e diferente da secao 2: nada aqui sobrescreve
+  // arquivo. O perigo e de ESTADO - a linha aciona o lado do Omarchy de um
+  // recurso cujo dono nesta maquina e o host, e o resultado e silencioso:
+  // um "Lock" que nao tranca, dois daemons de idle brigando, um processo
+  // re-parentado para fora do unit que o vigia. Onde ha equivalente do host,
+  // a linha e SUBSTITUIDA (mesma cara, funcao honesta); onde nao ha, some.
+
+  // PIOR CASO DO MENU INTEIRO: falsa seguranca. `omarchy-system-lock` fala
+  // com o plugin omarchy.lock, que aqui esta desabilitado (sem o PAM dele,
+  // ASSUMPTIONS §6) - o IPC vira no-op e a linha "Lock" NAO TRANCA NADA,
+  // sem erro nenhum. Trocada pelo locker do host.
+  "system.lock": {
+    "icon": "",
+    "label": "Lock",
+    "action": "pidof hyprlock >/dev/null || uwsm-app -- hyprlock"
+  },
+
+  // O screensaver do Omarchy e ttfx + o plugin de idle deles, nenhum dos dois
+  // presente/ativo aqui. Linha morta; escondida em vez de fingir.
+  "system.screensaver": { "when": "false" },
+  "trigger.toggle.screensaver": { "when": "false" },
+
+  // "Stay Awake" deles religa o plugin omarchy.idle - e ai sao DOIS daemons
+  // de idle, o deles e o hypridle do host, cada um com sua ideia de quando
+  // trancar. Trocada pelo mesmo gesto no idle do host.
+  "trigger.toggle.idle-lock": {
+    "icon": "󰅶",
+    "label": "Stay Awake",
+    "action": "sh -c 'if systemctl --user is-active -q hyde-Hyprland-idle.service; then systemctl --user stop hyde-Hyprland-idle.service; omarchy-osd -m \"Stay awake: idle do host pausado\"; else systemctl --user start hyde-Hyprland-idle.service; omarchy-osd -m \"Idle normal\"; fi'"
+  },
+
+  // `omarchy-restart-hyprsunset` mata e relanca o processo POR FORA do unit
+  // do host que o vigia - o daemon continua, mas orfao do systemd. O restart
+  // honesto e do unit.
+  "update.process.hyprsunset": {
+    "icon": "",
+    "label": "Hyprsunset",
+    "action": "systemctl --user restart hyde-Hyprland-blue-light-filter.service"
+  },
+
+  // `omarchy-refresh-tmux` sobrescreve o tmux.conf com o default deles - e
+  // nesta maquina ~/.tmux.conf existe e e proprio. (O MENU-OVERRIDES chama
+  // esta de inofensiva "se voce nao tem config para perder"; aqui tem.)
+  "update.config.tmux": { "when": "false" },
+
+  // Grava uma entrada EFI apontando para a UKI DO OMARCHY - takeover da
+  // cadeia de boot numa maquina que boota pelo caminho do host.
+  "setup.direct-boot": { "when": "false" },
+
+  // O editor de "Style > Hyprland" abre looknfeel.lua, que so existe num
+  // hyprland do Omarchy. Aqui a camada certa para mexer no visual e o
+  // hyprland.lua do usuario - o mesmo arquivo onde vive a fiacao do guest.
+  "style.hyprland": {
+    "icon": "",
+    "label": "Hyprland",
+    "action": "omarchy-launch-config-editor \"$HOME/.config/hypr/hyprland.lua\""
+  }
 }
