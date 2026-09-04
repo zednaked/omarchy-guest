@@ -31,8 +31,16 @@ HOME = Path(os.path.expanduser("~"))
 THEME = Path(os.environ.get("OMARCHY_STATE", HOME / ".local/state/omarchy")) / "current/theme"
 BACKUP = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state")) / "omarchy-guest/boot-theme-orig"
 
-PLYMOUTH = Path("/usr/share/plymouth/themes/zednet")
-SDDM_CONF = Path("/usr/share/sddm/themes/sddm-astronaut-theme/Themes/zednet.conf")
+# Os padroes sao os temas da zednet, a primeira maquina que este script
+# pintou. Outra maquina aponta os seus pelas variaveis; uma maquina sem
+# plymouth e sem SDDM (GDM, por exemplo) nao tem nada aqui para pintar,
+# e o main sai cedo dizendo isso - antes de pedir root.
+PLYMOUTH = Path(os.environ.get("OMARCHY_GUEST_PLYMOUTH_THEME",
+                               "/usr/share/plymouth/themes/zednet"))
+SDDM_CONF = Path(os.environ.get("OMARCHY_GUEST_SDDM_CONF",
+                                "/usr/share/sddm/themes/sddm-astronaut-theme/Themes/zednet.conf"))
+# Convencao do plymouth: o script principal tem o nome do diretorio do tema.
+PLYMOUTH_SCRIPT = PLYMOUTH / (PLYMOUTH.name + ".script")
 
 
 def read_key(path: Path, key: str) -> str:
@@ -136,7 +144,7 @@ def write_root(path: Path, content: str, dry: bool) -> bool:
 
 def paint_sddm(p: dict[str, str], dry: bool) -> bool:
     if not SDDM_CONF.is_file():
-        print("  sddm: tema zednet nao encontrado, pulando")
+        print(f"  sddm: {SDDM_CONF.name} nao encontrado, pulando")
         return False
     backup_once([SDDM_CONF])
     src = (BACKUP / SDDM_CONF.name).read_text(encoding="utf-8", errors="replace")
@@ -193,9 +201,9 @@ def paint_sddm(p: dict[str, str], dry: bool) -> bool:
 
 
 def paint_plymouth(p: dict[str, str], dry: bool) -> bool:
-    script = PLYMOUTH / "zednet.script"
+    script = PLYMOUTH_SCRIPT
     if not script.is_file():
-        print("  plymouth: tema zednet nao encontrado, pulando")
+        print(f"  plymouth: tema {PLYMOUTH.name} nao encontrado, pulando")
         return False
     bars = [PLYMOUTH / n for n in ("bar-bg.png", "bar-chunk.png", "bar-fg.png")]
     logo = PLYMOUTH / "logo.png"
@@ -270,7 +278,7 @@ def restore(dry: bool) -> int:
     if not BACKUP.is_dir():
         print("nada para restaurar")
         return 0
-    targets = {"zednet.conf": SDDM_CONF, "zednet.script": PLYMOUTH / "zednet.script"}
+    targets = {SDDM_CONF.name: SDDM_CONF, PLYMOUTH_SCRIPT.name: PLYMOUTH_SCRIPT}
     for name in ("bar-bg.png", "bar-chunk.png", "bar-fg.png"):
         targets[name] = PLYMOUTH / name
     for name, dest in targets.items():
@@ -298,6 +306,17 @@ def main(argv: list[str]) -> int:
         print(f"sem tema do Omarchy em {THEME}", file=sys.stderr)
         return 1
 
+    # A saida honesta: numa maquina sem nenhuma das duas superficies (GDM sem
+    # plymouth, por exemplo) nao ha nada aqui que seja nosso para pintar, e
+    # sair cedo evita pedir root e reconstruir initramfs por nada.
+    if not SDDM_CONF.is_file() and not PLYMOUTH_SCRIPT.is_file():
+        print("nada aqui e meu para pintar: nem tema SDDM, nem tema Plymouth.")
+        print(f"  procurei: {SDDM_CONF}")
+        print(f"            {PLYMOUTH_SCRIPT}")
+        print("um display manager sem tema proprio (GDM, por exemplo) nao passa por aqui.")
+        print("outros caminhos: OMARCHY_GUEST_SDDM_CONF e OMARCHY_GUEST_PLYMOUTH_THEME.")
+        return 0
+
     p = palette()
     name = (THEME.parent / "theme.name")
     print(f"tema: {name.read_text().strip() if name.is_file() else '?'}")
@@ -305,10 +324,13 @@ def main(argv: list[str]) -> int:
           f"apagado #{p['muted']}  aviso #{p['urgent']}")
 
     ok = paint_sddm(p, args.dry_run)
-    ok = paint_plymouth(p, args.dry_run) and ok
+    ply = paint_plymouth(p, args.dry_run)
+    ok = ply and ok
 
     if args.no_initramfs:
         print("  initramfs: pulado (--no-initramfs). O login ja mudou; o boot nao.")
+    elif not ply:
+        print("  initramfs: nada do plymouth mudou, sem motivo para reconstruir")
     elif args.dry_run:
         print("  initramfs: seria reconstruido")
     else:
