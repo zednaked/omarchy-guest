@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Executa um comando do Omarchy com o ambiente que a sessao do host nao
+# exporta. Os comandos deles chamam uns aos outros por nome puro, entao o
+# PATH precisa estar certo dentro do processo, nao so no chamador - e o
+# compositor que ja estava rodando quando o guest foi instalado so recebe
+# environment.d no proximo login.
+if [[ -z ${OMARCHY_PATH:-} ]]; then
+  for c in "$HOME/.local/share/omarchy" /usr/share/omarchy; do
+    [[ -d $c ]] && { OMARCHY_PATH="$c"; break; }
+  done
+fi
+export OMARCHY_PATH
+case ":$PATH:" in *":$OMARCHY_PATH/bin:"*) ;; *) export PATH="$PATH:$OMARCHY_PATH/bin" ;; esac
+exec "$@"

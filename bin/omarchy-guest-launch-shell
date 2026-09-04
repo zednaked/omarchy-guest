@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# O que o autostart do guest chama no hyprland.start: sobe o shell do
+# Omarchy ja com o ambiente resolvido, via omarchy-guest-run ao lado.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$here/omarchy-guest-run" omarchy-launch-shell
