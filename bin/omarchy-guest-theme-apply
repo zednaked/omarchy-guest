@@ -55,6 +55,7 @@ if [[ -z $stops ]]; then
 fi
 muted="$(hexkey "$palette" color8)"; [[ -n $muted ]] || muted="$(hexkey "$palette" color7)"
 [[ -n $muted ]] || muted="$(printf '%s' "$stops" | head -1)"
+muted="${muted#\#}"  # o fallback vem de $stops, que ainda carrega o hash
 
 # Sem o `#`: o grep devolve `#ad2222` e o Hyprland quer `rgba(ad2222ff)`.
 # Deixar o hash dentro do rgba() da "invalid color" e o gradiente inteiro cai.
@@ -140,7 +141,9 @@ fi
 
 if [[ -n $bg && -f $bg ]]; then
   if [[ -x $HOME/.local/lib/hyde/wallpaper.sh ]]; then
-    "$HOME/.local/lib/hyde/wallpaper.sh" --set "$bg" >/dev/null 2>&1 &&
+    # -t: o Omarchy escolhe .webp com frequencia e o wallpaper.sh do HyDE nao
+    # o tem na lista padrao - sem o override ele "nao encontra" o arquivo.
+    "$HOME/.local/lib/hyde/wallpaper.sh" -t 'jpg:jpeg:png:gif:bmp:webp' --set "$bg" >/dev/null 2>&1 &&
       echo "  wallpaper: $(basename "$bg")"
   else
     echo "  wallpaper: sem wallpaper.sh do host; deixe o plugin omarchy.background ligado"
