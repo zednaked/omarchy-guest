@@ -318,6 +318,25 @@ install_all() {
     fi
   done
 
+  section "Hooks"
+  # O README sempre prometeu isto; a primeira versao do install esquecia de
+  # copiar, e o theme-set.d so funcionava na maquina onde foi escrito a mao.
+  local hdest="$HOME/.config/omarchy/hooks"
+  for hookd in "$REPO"/hooks/*/; do
+    [[ -d $hookd ]] || continue
+    local hname; hname="$(basename "$hookd")"
+    if ((dry)); then info "would install $hname -> $hdest/$hname"; else
+      mkdir -p "$hdest/$hname"
+      for hf in "$hookd"*; do
+        [[ -f $hf ]] || continue
+        backup "$hdest/$hname/$(basename "$hf")"
+        cp "$hf" "$hdest/$hname/"
+        chmod +x "$hdest/$hname/$(basename "$hf")"
+        ok "$hname/$(basename "$hf")"
+      done
+    fi
+  done
+
   section "Quadro"
   local qdir="$HOME/.local/share/omarchy-guest/quadro"
   if [[ -d $REPO/quadro ]]; then
