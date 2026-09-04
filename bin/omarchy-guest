@@ -378,6 +378,21 @@ install_all() {
     fi
   done
 
+  section "Shims (na frente do bin/ deles, via omarchy-guest-run)"
+  local sdest="$HOME/.local/share/omarchy-guest/shims"
+  for shim in "$REPO"/shims/*; do
+    [[ -f $shim ]] || continue
+    local sname; sname="$(basename "$shim")"
+    if ((dry)); then info "would install $sname -> $sdest"; else
+      mkdir -p "$sdest"
+      cp "$shim" "$sdest/"
+      chmod +x "$sdest/$sname"
+      ok "$sname"
+    fi
+  done
+  note "so valem para processos lancados por omarchy-guest-run / launch-shell;"
+  note "um terminal que chama o comando pelo nome ainda cai no original deles"
+
   section "Hooks"
   # O README sempre prometeu isto; a primeira versao do install esquecia de
   # copiar, e o theme-set.d so funcionava na maquina onde foi escrito a mao.

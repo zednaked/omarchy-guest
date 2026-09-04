@@ -4,6 +4,11 @@
 # PATH precisa estar certo dentro do processo, nao so no chamador - e o
 # compositor que ja estava rodando quando o guest foi instalado so recebe
 # environment.d no proximo login.
+#
+# Ordem do PATH: shims/ do guest ANTES do bin/ deles. Um shim so vale se vier
+# primeiro; o bin/ deles entra no fim para nao passar na frente do host.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+shims="$(cd "$here/.." && pwd)/shims"
 if [[ -z ${OMARCHY_PATH:-} ]]; then
   for c in "$HOME/.local/share/omarchy" /usr/share/omarchy; do
     [[ -d $c ]] && { OMARCHY_PATH="$c"; break; }
@@ -11,4 +16,7 @@ if [[ -z ${OMARCHY_PATH:-} ]]; then
 fi
 export OMARCHY_PATH
 case ":$PATH:" in *":$OMARCHY_PATH/bin:"*) ;; *) export PATH="$PATH:$OMARCHY_PATH/bin" ;; esac
+if [[ -d $shims ]]; then
+  case ":$PATH:" in *":$shims:"*) ;; *) export PATH="$shims:$PATH" ;; esac
+fi
 exec "$@"

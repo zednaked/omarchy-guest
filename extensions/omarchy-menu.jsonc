@@ -15,9 +15,15 @@
   // Esta maquina roda o shell do Omarchy como CONVIDADO, sobre outro dono
   // (HyDE nas duas primeiras instalacoes). Varias acoes do menu deles
   // pressupoem ser donas da maquina, e algumas destroem config que aqui e de
-  // outro dono. Este arquivo faz duas coisas: troca o atualizador, e esconde
-  // o que quebra. Confira cada linha contra o SEU host - o comando por tras
-  // de cada uma e legivel com `cat $(which <comando>)`.
+  // outro dono. Este arquivo faz tres coisas: troca o atualizador, esconde o
+  // que sobrescreve arquivo, e devolve ao host o que e do host. Confira cada
+  // linha contra o SEU host - o comando por tras de cada uma e legivel com
+  // `cat $(which <comando>)`.
+  //
+  // Regra de portabilidade: nenhuma acao aqui depende de comando do guest por
+  // nome puro. O PATH do processo do shell varia entre hosts (environment.d,
+  // autostart, wrapper); o que precisa de caminho usa candidatos explicitos,
+  // como a linha do atualizador.
 
   // ==========================================================================
   // 1. Update: motor do HyDE no lugar do deles
@@ -90,7 +96,7 @@
   },
 
   // ==========================================================================
-  // 2. O que quebra este sistema, escondido
+  // 2. O que sobrescreve arquivo do host, escondido
   // ==========================================================================
   //
   // Todas com `when: "false"`, que sempre falha e some com a linha. Escondidas
@@ -106,8 +112,8 @@
   "update.config.hyprland": { "when": "false" },
 
   // `omarchy-refresh-shell` reseta o shell.json e roda `omarchy-bar defaults`:
-  // apaga o layout da barra e a lista de plugins - os seis de terceiro mais o
-  // zed.hyde-updates.
+  // apaga o layout da barra e a lista de plugins - os de terceiro mais os
+  // deste repo.
   "update.config.shell": { "when": "false" },
 
   // `omarchy-refresh-plymouth` e `omarchy-plymouth-reset` (este ultimo tambem
@@ -122,9 +128,15 @@
   // num host HyDE esse arquivo e dele, ajustado ou nao.
   "update.config.hyprsunset": { "when": "false" },
 
-  // Com os cinco filhos de Update > Config escondidos (hyprland, shell,
-  // plymouth, hyprsunset, tmux), o pai viraria um submenu vazio apontando
-  // para o nada. Some junto.
+  // `omarchy-refresh-tmux` sobrescreve o tmux.conf com o default deles.
+  // Inofensivo onde nao ha config de tmux para perder; destrutivo onde ha.
+  // Escondido nos dois casos, porque com os outros quatro filhos fora o pai
+  // `update.config` some junto (abaixo) e esta linha ficaria sozinha num
+  // submenu chamado "Reset to default".
+  "update.config.tmux": { "when": "false" },
+
+  // Com os cinco filhos de Update > Config escondidos, o pai viraria um
+  // submenu vazio apontando para o nada. Some junto.
   "update.config": { "when": "false" },
 
   // Reset de fabrica. Em raiz ext4 a condicao deles ja esconde; em btrfs nao.
@@ -141,15 +153,30 @@
   // um "Lock" que nao tranca, dois daemons de idle brigando, um processo
   // re-parentado para fora do unit que o vigia. Onde ha equivalente do host,
   // a linha e SUBSTITUIDA (mesma cara, funcao honesta); onde nao ha, some.
+  //
+  // Preferencia, nesta ordem: (a) a interface que qualquer host entende
+  // (logind, inibidores do systemd), (b) o comando original deles envolvido por
+  // um shim em shims/, (c) o nome de um unit do host, que e o unico que precisa
+  // de adaptacao por maquina.
 
   // PIOR CASO DO MENU INTEIRO: falsa seguranca. `omarchy-system-lock` fala
   // com o plugin omarchy.lock, que aqui esta desabilitado (sem o PAM dele,
   // ASSUMPTIONS §6) - o IPC vira no-op e a linha "Lock" NAO TRANCA NADA,
-  // sem erro nenhum. Trocada pelo locker do host.
+  // sem erro nenhum.
+  //
+  // A troca e `loginctl lock-session`, nao um locker pelo nome: e o pedido de
+  // lock do logind, que o daemon de idle do host ja escuta - hypridle roda o
+  // `lock_cmd` do proprio hypridle.conf (no HyDE, `pidof hyprlock || hyprlock`,
+  // com a guarda contra instancia dupla), swayidle e afins idem. Assim a linha
+  // tranca com o locker que o host escolheu, sem este arquivo saber qual e. E
+  // o mesmo caminho que o `hyde-shell lock-session` do HyDE usa.
+  // Pre-requisito: o hypridle.conf do host precisa ter `lock_cmd` na secao
+  // `general`; sem ele o pedido do logind cai no vazio, do mesmo jeito que a
+  // linha original. Conferir com `grep lock_cmd ~/.config/hypr/hypridle.conf`.
   "system.lock": {
     "icon": "",
     "label": "Lock",
-    "action": "pidof hyprlock >/dev/null || uwsm-app -- hyprlock"
+    "action": "loginctl lock-session"
   },
 
   // O screensaver do Omarchy e ttfx + o plugin de idle deles, nenhum dos dois
@@ -157,39 +184,39 @@
   "system.screensaver": { "when": "false" },
   "trigger.toggle.screensaver": { "when": "false" },
 
-  // "Stay Awake" deles religa o plugin omarchy.idle - e ai sao DOIS daemons
-  // de idle, o deles e o hypridle do host, cada um com sua ideia de quando
-  // trancar. Trocada pelo mesmo gesto no idle do host.
-  "trigger.toggle.idle-lock": {
-    "icon": "󰅶",
-    "label": "Stay Awake",
-    "action": "sh -c 'if systemctl --user is-active -q hyde-Hyprland-idle.service; then systemctl --user stop hyde-Hyprland-idle.service; omarchy-osd -m \"Stay awake: idle do host pausado\"; else systemctl --user start hyde-Hyprland-idle.service; omarchy-osd -m \"Idle normal\"; fi'"
-  },
+  // "Stay Awake" NAO e sobrescrito aqui de proposito. A linha original chama
+  // `omarchy-toggle-idle`, e quem responde e o shim em shims/ (na frente do
+  // bin/ deles pelo omarchy-guest-run): ele roda o original, que grava o
+  // indicador do Omarchy, e segura um `systemd-inhibit --what=idle` enquanto
+  // o indicador existir. O daemon de idle do host continua de pe (brilho,
+  // DPMS), so o idle e inibido, e o estado do Omarchy e o real andam juntos.
+  // Uma linha que parasse o unit de idle por fora deixaria o indicador
+  // dizendo uma coisa e o daemon fazendo outra, e dependeria do nome do unit.
 
   // `omarchy-restart-hyprsunset` mata e relanca o processo POR FORA do unit
   // do host que o vigia - o daemon continua, mas orfao do systemd. O restart
-  // honesto e do unit.
+  // honesto e do unit. Este e o unico nome de unit do arquivo: adapte ao host.
   "update.process.hyprsunset": {
     "icon": "",
     "label": "Hyprsunset",
     "action": "systemctl --user restart hyde-Hyprland-blue-light-filter.service"
   },
 
-  // `omarchy-refresh-tmux` sobrescreve o tmux.conf com o default deles - e
-  // nesta maquina ~/.tmux.conf existe e e proprio. (O MENU-OVERRIDES chama
-  // esta de inofensiva "se voce nao tem config para perder"; aqui tem.)
-  "update.config.tmux": { "when": "false" },
-
   // Grava uma entrada EFI apontando para a UKI DO OMARCHY - takeover da
   // cadeia de boot numa maquina que boota pelo caminho do host.
   "setup.direct-boot": { "when": "false" },
 
-  // O editor de "Style > Hyprland" abre looknfeel.lua, que so existe num
-  // hyprland do Omarchy. Aqui a camada certa para mexer no visual e o
-  // hyprland.lua do usuario - o mesmo arquivo onde vive a fiacao do guest.
+  // "Style > Hyprland" abre looknfeel.lua. Isso esta certo onde o arquivo e
+  // FIADO - o hyprland.lua do usuario o carrega (dofile/require), como na
+  // maquina de referencia, onde o Omaland escreve nele. Existir nao basta:
+  // num guest o looknfeel.lua e orfao ate ser fiado (THEMING.md), e abrir um
+  // arquivo que nada le e o mesmo "mudei e continua igual" do painel. Onde nao
+  // esta fiado, a camada honesta e o hyprland.lua do usuario, o mesmo arquivo
+  // onde vive a fiacao do guest. A acao decide na hora, em vez de este arquivo
+  // escolher por um host.
   "style.hyprland": {
     "icon": "",
     "label": "Hyprland",
-    "action": "omarchy-launch-config-editor \"$HOME/.config/hypr/hyprland.lua\""
+    "action": "sh -c 'f=\"$HOME/.config/hypr/looknfeel.lua\"; { [ -f \"$f\" ] && grep -q looknfeel \"$HOME/.config/hypr/hyprland.lua\"; } || f=\"$HOME/.config/hypr/hyprland.lua\"; exec omarchy-launch-config-editor \"$f\"'"
   }
 }

@@ -74,17 +74,53 @@ host. The failure is silent state, not lost files:
 | row id | what it does | what goes wrong as a guest |
 |---|---|---|
 | `system.lock` | `omarchy-shell lock lock` | with `omarchy.lock` disabled (no PAM), the IPC is a no-op: **the Lock row locks nothing**, and says nothing. False security - the worst row in the menu |
-| `trigger.toggle.idle-lock` | re-enables `omarchy.idle` | two idle daemons - theirs and the host's - each with its own idea of when to lock |
+| `trigger.toggle.idle-lock` | writes the stay-awake indicator | the only reader of that indicator is `omarchy.idle`, disabled on a guest: the row flips state and inhibits nothing |
 | `system.screensaver`, `trigger.toggle.screensaver` | ttfx + their idle plugin | both absent/disabled on a guest; dead rows |
 | `update.process.hyprsunset` | kills and relaunches hyprsunset | the daemon survives, but orphaned from the host unit that supervises it |
 | `setup.direct-boot` | writes an EFI entry for the **Omarchy UKI** | boot-chain takeover on a machine that boots the host's path |
-| `style.hyprland` | opens `looknfeel.lua` in the editor | that file only exists on an Omarchy-owned Hyprland; the honest layer to edit is the user's `hyprland.lua` |
+| `style.hyprland` | opens `looknfeel.lua` in the editor | right where that file is wired into the user's `hyprland.lua` (the reference host's Omaland panel writes it); where it is not, the honest layer is the user's `hyprland.lua` |
 
 Where the host has an equivalent, **replace** the row (same icon and label,
-honest action): `system.lock` becomes the host's locker, `Stay Awake` becomes
-stop/start of the host's idle unit. Where it does not, hide. The reference
-override file's section 3 does both - the unit names are the host's, so adapt
-them to yours.
+honest action). Where it does not, hide. The reference override file's
+section 3 does both.
+
+Prefer, in this order, the mechanism that needs the least adapting:
+
+1. **An interface every host speaks.** `system.lock` is `loginctl lock-session`:
+   the logind lock request, which the host's idle daemon already listens for -
+   hypridle runs the `lock_cmd` from its own `hypridle.conf`, swayidle likewise.
+   The row locks with whatever locker the host chose, and the override never
+   names it. Prerequisite: `lock_cmd` in the `general` section of the host's
+   `hypridle.conf`; without it the request goes nowhere, exactly like the
+   original row. `grep lock_cmd ~/.config/hypr/hypridle.conf` says which.
+2. **Their command, wrapped by a shim.** `Stay Awake` is *not* overridden. The
+   row keeps calling `omarchy-toggle-idle`, and `shims/omarchy-toggle-idle`
+   answers first (see below): it runs the original, so Omarchy's indicator is
+   written as before, then holds a `systemd-inhibit --what=idle` for as long as
+   the indicator exists. The host's idle daemon stays up - brightness, DPMS -
+   and only idle is held. Stopping the host's idle unit from a menu row instead
+   would leave the indicator saying one thing and the daemon doing another, and
+   would tie the file to a unit name.
+3. **A host unit name.** Only `update.process.hyprsunset` needs one, because
+   the honest restart is of the unit that supervises the daemon. Adapt it.
+
+`style.hyprland` decides at click time: `looknfeel.lua` if it exists **and**
+the user's `hyprland.lua` loads it, the user's `hyprland.lua` otherwise. Existing
+is not enough - on a guest `looknfeel.lua` is an orphan until wired (see
+[`THEMING.md`](THEMING.md)), and opening a file nothing reads is the same
+"I changed it and nothing changed". One override serves both kinds of host.
+
+## Shims
+
+`shims/` holds scripts named exactly like an Omarchy command. They win only if
+the directory comes **before** `$OMARCHY_PATH/bin` on the PATH of the process
+that calls the command - and `omarchy-guest-run` (hence `launch-shell`, hence
+the shell and every menu row) puts it there. A terminal that types the bare
+name still gets the original unless the host's environment does the same;
+the reference machine does it in `~/.config/environment.d/`.
+
+`omarchy-guest install` copies them to `~/.local/share/omarchy-guest/shims/`,
+next to `bin/`, which is the layout `omarchy-guest-run` expects.
 
 ## Replacing a row instead of hiding it
 

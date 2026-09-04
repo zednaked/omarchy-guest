@@ -44,6 +44,7 @@ more thing that can behave differently on a machine you are not sitting at.
     quadro/         starter documents for the board
     vendor/         third-party code, with its own licence (see its NOTICE)
     lib/            the `o` helper shim
+    shims/          same-named wrappers around Omarchy commands, PATH-first
 
 ## Why this is not the same as "install Omarchy without wiping my disk"
 
@@ -123,6 +124,11 @@ Short version:
 - **`omarchy-guest-apply-browser-policy`** - the root half of themed browser
   colors, once per machine: packaged path, sudoers rule (validated before it
   counts), hardened policy dirs. See ASSUMPTIONS item 9.
+- **`shims/`** - scripts named like an Omarchy command that wrap the original
+  instead of replacing it, placed ahead of their `bin/` by `omarchy-guest-run`.
+  First one: `omarchy-toggle-idle`, so Stay Awake holds a systemd idle
+  inhibitor the host's idle daemon respects. See
+  [`docs/MENU-OVERRIDES.md`](docs/MENU-OVERRIDES.md).
 - **`omarchy-guest-run`** and **`omarchy-guest-launch-shell`** - environment
   wrappers. Omarchy's commands call each other by bare name, and the compositor
   that was already running when the guest was installed does not have their
