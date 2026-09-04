@@ -46,8 +46,7 @@
   // O atualizador do Omarchy nao foi removido: e a unica forma de atualizar o
   // checkout deles e rodar migration. Virou linha propria, com rotulo honesto.
   "update.omarchy-repo": {
-    "icon": "",
-    "iconFont": "omarchy",
+    "icon": "󰚰",
     "label": "Omarchy (repo e migrations)",
     "description": "Atualiza o checkout do Omarchy e roda as migrations dele",
     "action": "omarchy-launch-floating-terminal-with-presentation omarchy-update"
