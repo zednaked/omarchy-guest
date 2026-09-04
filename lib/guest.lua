@@ -9,15 +9,28 @@
 -- lines of pure definitions with no side effects, the next `o.something` comes
 -- for free, and their updates keep it current.
 
-local omarchy_path = os.getenv("OMARCHY_PATH") or "/usr/share/omarchy"
-local helpers = omarchy_path .. "/default/hypr/helpers.lua"
+-- The same candidates the doctor checks, in the same order. OMARCHY_PATH is
+-- the honest signal, but the compositor that is already running when the
+-- guest is installed does not have it yet - environment.d only reaches the
+-- session at the next login. The checkout location has to work on its own.
+-- table.insert, e nao um literal: os.getenv devolve nil quando a variavel
+-- nao existe, e um nil no meio do literal faz ipairs parar ali mesmo.
+local candidates = {}
+table.insert(candidates, os.getenv("OMARCHY_PATH"))
+table.insert(candidates, (os.getenv("HOME") or "") .. "/.local/share/omarchy")
+table.insert(candidates, "/usr/share/omarchy")
 
-local handle = io.open(helpers, "r")
-if not handle then
-	-- Not fatal on purpose: a host config should still load without Omarchy.
-	return false
+for _, omarchy_path in ipairs(candidates) do
+	if omarchy_path and omarchy_path ~= "" then
+		local helpers = omarchy_path .. "/default/hypr/helpers.lua"
+		local handle = io.open(helpers, "r")
+		if handle then
+			handle:close()
+			dofile(helpers)
+			return true
+		end
+	end
 end
-handle:close()
 
-dofile(helpers)
-return true
+-- Not fatal on purpose: a host config should still load without Omarchy.
+return false
