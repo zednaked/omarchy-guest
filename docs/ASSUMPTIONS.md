@@ -95,6 +95,14 @@ units inherit it.
 notifications, OSD and overlays, so half-disabling it is not useful. How you
 suppress depends on the host.
 
+**Suppressing the autostart is not always enough.** The daemon's package may
+also ship a D-Bus service file claiming `org.freedesktop.Notifications` (on
+Arch, dunst does: `org.knopwob.dunst.service`, with a static systemd user unit
+behind it). Then the first `notify-send` of the boot resurrects it if it wins
+the name race against the shell - no error anywhere, notifications just go to
+the wrong daemon. `systemctl --user mask dunst.service` closes both paths,
+because the D-Bus activation goes through systemd. `doctor` checks for this.
+
 **Only visible after a reboot:** the reverse also bites. If you take ownership
 away from the host, everything the host's session startup used to launch stops
 being launched - and a config *reload* will not show it, because reload does not

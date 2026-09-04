@@ -175,6 +175,25 @@ doctor() {
     ok "no competing notification daemon"
   fi
 
+  # Um daemon parado ainda volta por ativacao D-Bus: o pacote instala um
+  # service file reivindicando org.freedesktop.Notifications e o primeiro
+  # notify-send do boot o ressuscita antes do shell registrar o nome - sem
+  # erro em lugar nenhum, as notificacoes so vao para o daemon errado.
+  # Visto no primeiro boot real como guest, com o dunst.service do Arch.
+  local svc dbus_unit
+  for svc in /usr/share/dbus-1/services/*.service; do
+    [[ -f $svc ]] || continue
+    grep -q '^Name=org.freedesktop.Notifications$' "$svc" || continue
+    dbus_unit="$(sed -n 's/^SystemdService=//p' "$svc" | head -1)"
+    if [[ -n $dbus_unit && "$(systemctl --user is-enabled "$dbus_unit" 2>/dev/null)" == "masked" ]]; then
+      ok "dbus activation de notificacoes mascarada ($(basename "$svc"))"
+    else
+      warn "$(basename "$svc") reivindica org.freedesktop.Notifications por D-Bus"
+      note "suprimir o autostart do host nao basta: o primeiro notify-send do boot"
+      note "ressuscita o daemon. fix: systemctl --user mask ${dbus_unit:-<a unit do daemon>}"
+    fi
+  done
+
   for pair in "hypridle:idle daemon" "hyprlock:lock screen" "swayidle:idle daemon" "swaylock:lock screen"; do
     local proc="${pair%%:*}" what="${pair#*:}"
     running "$proc" && info "host $what: $proc"
