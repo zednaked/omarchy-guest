@@ -15,7 +15,9 @@ shell run on top of them.
 
 ## Status
 
-**Early**, but no longer only documentation.
+Running as the daily shell on two machines - the reference machine and a
+second install that found (and fixed) everything machine-specific the first
+one could not see.
 
     omarchy-guest doctor              # read-only inspection, changes nothing
     omarchy-guest install --dry-run   # show what would be written
@@ -92,6 +94,9 @@ Short version:
 | its autostart starts the bar | host may already run one | two bars |
 | nothing else runs a notification daemon | host usually does | duplicate notifications |
 | lock screen has its PAM file | fresh Arch does not | one command, needs root |
+| nothing else claims the notifications D-Bus name | the daemon's package dbus-activates it at boot | one user-unit mask |
+| the installer's ~150 packages are present | only what the shell calls matters | five packages; doctor lists them |
+| privileged helpers live in `/usr/bin` | a checkout has no packaged path | one root-once apply command |
 
 ## What ships here
 
@@ -115,6 +120,9 @@ Short version:
 - **`omarchy-guest-theme-boot`** - the same for the boot splash and the login
   screen. Needs root and rebuilds the initramfs, so it stays a manual command,
   with `--dry-run`, `--no-initramfs` and `--restore`.
+- **`omarchy-guest-apply-browser-policy`** - the root half of themed browser
+  colors, once per machine: packaged path, sudoers rule (validated before it
+  counts), hardened policy dirs. See ASSUMPTIONS item 9.
 - **`omarchy-guest-run`** and **`omarchy-guest-launch-shell`** - environment
   wrappers. Omarchy's commands call each other by bare name, and the compositor
   that was already running when the guest was installed does not have their

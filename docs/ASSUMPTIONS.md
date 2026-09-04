@@ -175,6 +175,50 @@ and `omarchy-guest-theme-boot` implement it.
 
 ---
 
+## 8. The installer's packages are present
+
+**Assumption:** everything in `omarchy-base.packages` (~150 packages) got
+installed, because their installer ran.
+
+**As a guest:** on the second machine, 85 of them were absent - and that is
+mostly fine, because most are desktop opinions (kdenlive, libreoffice,
+obsidian, chromium) that a guest deliberately does not want. The trap is the
+small subset the shell and the menu's commands invoke at runtime. The first
+`omarchy plugin add` dies with `gum: command not found`; the Wi-Fi QR panel
+needs `qrencode`; pasting a file from the clipboard needs `wtype`; every menu
+row that opens a terminal goes through `xdg-terminal-exec` and `uwsm-app`.
+
+**Cost:** low, but each one is discovered as a broken feature, not as an error
+at install time.
+
+**Fix:** the curated list - what actually broke, not the whole package file -
+lives in `doctor` under "Runtime deps", with the `pacman -S` line ready.
+85 missing packages are not 85 problems; five of them are.
+
+---
+
+## 9. Privileged helpers run from the packaged path
+
+**Assumption:** helpers that need root live at `/usr/bin/omarchy-*`, and the
+sudoers rules their installer wrote match those exact paths.
+
+**As a guest:** the sudoers rule is path-exact **by design** - the grant covers
+one command with one argument shape and nothing else, and that is good
+security, not an oversight. But a checkout has no `/usr/bin` copy and no rule,
+so the feature fails with a bare "Error accessing /usr/bin/..." on every theme
+change. The browser policy write (theme color into the Chromium-family managed
+policy dirs) is the first of these; the lock screen's PAM file (item 6) is the
+same family of assumption.
+
+**Cost:** one root-once command per helper, or living with the error.
+
+**Fix:** `omarchy-guest-apply-browser-policy` installs the packaged copy, the
+rule (validated with `visudo -c` first - a broken sudoers locks the whole
+machine out of sudo), and the hardened policy directories, mirroring their
+installer. `doctor` checks for it when a Chromium-family browser is present.
+
+---
+
 ## Things that are NOT a problem
 
 Worth stating, because they are the usual worries:
