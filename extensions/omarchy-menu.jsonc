@@ -12,10 +12,12 @@
   // `$OMARCHY_PATH/default/omarchy/omarchy-menu.jsonc` funcionaria hoje e
   // seria desfeito no proximo update deles.
   //
-  // Esta maquina roda o shell do Omarchy como CONVIDADO, sobre o HyDE. Varias
-  // acoes do menu deles pressupoem ser donas da maquina, e algumas destroem
-  // config que aqui e de outro dono. Este arquivo faz duas coisas: troca o
-  // atualizador, e esconde o que quebra.
+  // Esta maquina roda o shell do Omarchy como CONVIDADO, sobre outro dono
+  // (HyDE nas duas primeiras instalacoes). Varias acoes do menu deles
+  // pressupoem ser donas da maquina, e algumas destroem config que aqui e de
+  // outro dono. Este arquivo faz duas coisas: troca o atualizador, e esconde
+  // o que quebra. Confira cada linha contra o SEU host - o comando por tras
+  // de cada uma e legivel com `cat $(which <comando>)`.
 
   // ==========================================================================
   // 1. Update: motor do HyDE no lugar do deles
@@ -29,8 +31,8 @@
   // A PRIMEIRA linha passa a ser o atualizador vendorizado em
   // vendor/hyde-updater (originalmente do HyDE, GPL-3),
   // com backend por gerenciador, contagem por origem, e inventario publicado em
-  // $XDG_RUNTIME_DIR/hyde/update_info.json - o mesmo arquivo que alimenta o
-  // widget `zed.hyde-updates` na barra.
+  // $XDG_RUNTIME_DIR/omarchy-guest/update_info.json - o mesmo arquivo que
+  // alimenta o widget `zed.hyde-updates` na barra.
   //
   // A troca reusa o id `update.omarchy` em vez de criar um id novo de proposito:
   // a ordem das linhas vem da ordem de definicao, entao id novo cairia no fim.
@@ -98,10 +100,10 @@
 
   // MAIS PERIGOSA. `omarchy-refresh-hyprland` sobrescreve, com os defaults
   // deles: hyprland.lua, monitors.lua, looknfeel.lua, autostart.lua,
-  // bindings.lua e input.lua. Aqui o hyprland.lua e a camada de override do
-  // HyDE, o monitors.lua foi gerado pelo nwg-displays e o looknfeel.lua e
-  // escrito pelo Omaland. Acionar isso quebra a sessao no proximo login e
-  // apaga a configuracao dos tres.
+  // bindings.lua e input.lua. Num guest o hyprland.lua e a camada de override
+  // do host - e num guest deste projeto e tambem onde vive a supressao de
+  // barra/notificacao e o autostart do shell. Acionar isso quebra a sessao no
+  // proximo login, sem nenhum erro na hora.
   "update.config.hyprland": { "when": "false" },
 
   // `omarchy-refresh-shell` reseta o shell.json e roda `omarchy-bar defaults`:
@@ -111,17 +113,17 @@
 
   // `omarchy-refresh-plymouth` e `omarchy-plymouth-reset` (este ultimo tambem
   // chama `omarchy-refresh-sddm`) sobrescrevem o splash de boot e o tema do
-  // SDDM. Aqui os dois sao proprios: a identidade zednet no boot e o seletor de
-  // tema do SDDM feito a mao.
+  // SDDM. Numa maquina com tema proprio (a referencia tem identidade zednet
+  // nos dois) isso destroi trabalho; numa maquina sem plymouth/SDDM (GDM) as
+  // linhas so confundem. Escondidas nos dois casos.
   "update.config.plymouth": { "when": "false" },
   "style.unlock": { "when": "false" },
 
-  // `omarchy-refresh-hyprsunset` sobrescreve ~/.config/hypr/hyprsunset.conf,
-  // que aqui e ajustado.
+  // `omarchy-refresh-hyprsunset` sobrescreve ~/.config/hypr/hyprsunset.conf -
+  // num host HyDE esse arquivo e dele, ajustado ou nao.
   "update.config.hyprsunset": { "when": "false" },
 
-  // Reset de fabrica. Ja escondido pela condicao deles (exige raiz em btrfs, e
-  // aqui e ext4), mas nao custa deixar explicito: se o disco mudar um dia, a
-  // linha nao volta sozinha.
+  // Reset de fabrica. Em raiz ext4 a condicao deles ja esconde; em btrfs nao.
+  // Explicito aqui, o disco pode mudar um dia e a linha nao volta sozinha.
   "setup.reset": { "when": "false" }
 }
