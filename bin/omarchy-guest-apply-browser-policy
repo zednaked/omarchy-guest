@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# A metade root do tema de browser, uma vez por maquina.
+#
+# O upstream escreve a cor do tema em color.json nos diretorios de politica
+# gerenciada da familia Chromium, e a escrita privilegiada roda SEMPRE de
+# /usr/bin/omarchy-theme-set-browser-policy - a regra de sudoers casa esse
+# caminho exato, de proposito, para o grant cobrir uma cor e nada mais. Num
+# guest por checkout faltam as duas pecas, e toda troca de tema reclama
+# "Error accessing /usr/bin/...".
+#
+# Este comando instala as duas e prepara os diretorios, espelhando o
+# install/helpers/browser-policy.sh deles. Firefox fica de fora de
+# proposito: o policies.json deles e uma politica de empresa inteira, nao
+# so a cor - essa decisao e sua, nao deste script.
+set -euo pipefail
+
+if (( EUID != 0 )); then
+  echo "precisa de root: sudo $0" >&2
+  exit 1
+fi
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+
+# Os mesmos candidatos do doctor; com sudo o OMARCHY_PATH do usuario se
+# perde, entao a home de quem chamou tambem entra na lista.
+caller_home="$(getent passwd "${SUDO_USER:-root}" | cut -d: -f6)"
+for c in "${OMARCHY_PATH:-}" "$caller_home/.local/share/omarchy" /usr/share/omarchy; do
+  [[ -n $c && -f $c/bin/omarchy-theme-set-browser-policy ]] && { OMARCHY_PATH="$c"; break; }
+done
+if [[ ! -f ${OMARCHY_PATH:-}/bin/omarchy-theme-set-browser-policy ]]; then
+  echo "checkout do Omarchy nao encontrado (exporte OMARCHY_PATH)" >&2
+  exit 1
+fi
+echo "usando: $OMARCHY_PATH"
+
+install -m 0755 -o root -g root \
+  "$OMARCHY_PATH/bin/omarchy-theme-set-browser-policy" \
+  /usr/bin/omarchy-theme-set-browser-policy
+echo "  + /usr/bin/omarchy-theme-set-browser-policy"
+
+# Validada antes de valer: um sudoers quebrado tranca o sudo da maquina
+# inteira, e visudo -c e barato.
+tmp_rule=$(mktemp)
+cp "$OMARCHY_PATH/etc/sudoers.d/omarchy-theme-browser" "$tmp_rule"
+visudo -c -f "$tmp_rule" >/dev/null
+install -m 0440 -o root -g root -T "$tmp_rule" /etc/sudoers.d/omarchy-theme-browser
+rm -f "$tmp_rule"
+echo "  + /etc/sudoers.d/omarchy-theme-browser"
+
+# Diretorios e pais endurecidos (0755 root:root), como o instalador deles;
+# dentro dos managed/, nada que nao seja de root sobrevive.
+for dir in \
+  /etc/chromium /etc/chromium/policies /etc/chromium/policies/managed \
+  /etc/opt/chrome /etc/opt/chrome/policies /etc/opt/chrome/policies/managed \
+  /etc/opt/edge /etc/opt/edge/policies /etc/opt/edge/policies/managed \
+  /etc/brave /etc/brave/policies /etc/brave/policies/managed; do
+  if [[ -L $dir || ( -e $dir && ! -d $dir ) ]]; then rm -rf -- "$dir"; fi
+  install -d -m 0755 -o root -g root "$dir"
+done
+for dir in /etc/chromium/policies/managed /etc/opt/chrome/policies/managed \
+           /etc/opt/edge/policies/managed /etc/brave/policies/managed; do
+  find "$dir" -mindepth 1 -maxdepth 1 ! -user root -exec rm -rf -- {} +
+done
+echo "  + diretorios de politica endurecidos"
+
+echo
+echo "pronto. a proxima troca de tema pinta o browser sem pedir senha;"
+echo "para pintar ja: omarchy-theme-set-browser"

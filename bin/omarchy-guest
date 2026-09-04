@@ -217,6 +217,27 @@ doctor() {
     note "or keep your host's lock screen and leave omarchy.lock disabled"
   fi
 
+  # -- browser theme ---------------------------------------------------------
+  # A cor do tema no browser tem uma metade privilegiada que roda sempre do
+  # caminho empacotado (/usr/bin), porque a regra de sudoers casa esse caminho
+  # exato. Num checkout ela nao existe, e toda troca de tema reclama.
+  section "Browser theme"
+  local browser_found=""
+  for b in chromium google-chrome-stable google-chrome microsoft-edge-stable brave; do
+    have "$b" && { browser_found="$b"; break; }
+  done
+  if [[ -n $browser_found ]]; then
+    if [[ -x /usr/bin/omarchy-theme-set-browser-policy && -f /etc/sudoers.d/omarchy-theme-browser ]]; then
+      ok "escrita privilegiada instalada ($browser_found sera pintado)"
+    else
+      warn "$browser_found presente, mas a metade root do tema de browser falta"
+      note "num checkout, /usr/bin/omarchy-theme-set-browser-policy nao existe e a"
+      note "troca de tema reclama. fix: sudo omarchy-guest-apply-browser-policy"
+    fi
+  else
+    info "nenhum browser da familia Chromium - nada a pintar"
+  fi
+
   # -- what their autostart would launch -------------------------------------
   if [[ -n $omarchy_path && -f $omarchy_path/default/hypr/autostart.lua ]]; then
     section "What Omarchy's autostart would start"
@@ -327,7 +348,7 @@ install_all() {
 
   section "Collector"
   local bdest="$HOME/.local/share/omarchy-guest/bin"
-  for helper in omarchy-guest-graph omarchy-guest-theme-apply omarchy-guest-theme-boot omarchy-guest-run omarchy-guest-launch-shell; do
+  for helper in omarchy-guest-graph omarchy-guest-theme-apply omarchy-guest-theme-boot omarchy-guest-run omarchy-guest-launch-shell omarchy-guest-apply-browser-policy; do
     [[ -x $REPO/bin/$helper ]] || continue
     if ((dry)); then info "would install $helper -> $bdest"; else
       mkdir -p "$bdest"
