@@ -53,6 +53,13 @@ not touch it. Load order decides again: a file loaded after the host's theme
 wins, and the user's `looknfeel` is loaded near the end of the chain, so that is
 where the override goes.
 
+**The kitty colours are an orphan the same way.** `current-theme.conf` is only
+a theme if something includes it, and a host's kitty config has its own include
+chain that has never heard of ours. On the second machine the colours were
+"applied" for a day into a file kitty never read - no error, the terminal just
+kept the host's palette. `theme-apply` now appends the include to `kitty.conf`
+itself when it is missing, at the end, where the last definition wins.
+
 **On a guest, `looknfeel.lua` is an orphan until you wire it.** Omarchy's own
 chain loads `~/.config/hypr/looknfeel.lua`; the host's chain has never heard of
 it. Anything that writes there - the Omaland panel does exactly that - edits a

@@ -120,6 +120,20 @@ else
   origem=""
 fi
 
+# Escrever o arquivo nao basta: nesta maquina ninguem o incluia, e as cores
+# do terminal ficaram meses "aplicadas" num arquivo que o kitty nunca leu.
+# O include vai no FIM do kitty.conf de proposito - a ultima definicao vence,
+# e o dono do tema num guest deste projeto e o Omarchy.
+kitty_conf="$HOME/.config/kitty/kitty.conf"
+if [[ -n $origem && -f $kitty_conf ]] && ! grep -q 'current-theme.conf' "$kitty_conf"; then
+  {
+    echo ""
+    echo "# Cores do tema do Omarchy (omarchy-guest-theme-apply)"
+    echo "include current-theme.conf"
+  } >> "$kitty_conf"
+  echo "  kitty:     include adicionado ao kitty.conf (faltava)"
+fi
+
 if [[ -n $origem ]]; then
   # Kitty re-reads its config on SIGUSR1. No remote control needed, and it
   # reaches every window that is already open - writing the file alone changes
