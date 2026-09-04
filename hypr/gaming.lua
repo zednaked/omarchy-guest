@@ -5,7 +5,8 @@
 --
 --   1. desligar o que o compositor gasta a toa: sombra, blur, arredondamento,
 --      opacidade, gaps, e forcar toda janela opaca
---   2. silenciar notificacao, que nesta maquina ja e o omarchy-lab/dnd.sh
+--   2. silenciar notificacao - pelo IPC do proprio shell (setDnd), que
+--      existe em qualquer guest, ao contrario do dnd.sh do omarchy-lab
 --
 -- O `opaque = true` do original nao foi copiado. Ele era a razao de existirem as
 -- duas window rules de transparencia no hyprland.lua antigo, que passavam a vida
@@ -21,8 +22,10 @@ local gaming = {}
 
 local ligado = false
 
--- Os valores de volta sao os do seu looknfeel.lua (bloco do Omaland). Se voce
--- mexer nos sliders do Omaland, ajuste aqui tambem, ou o desligar devolve o
+-- Os valores de volta sao os da SUA maquina - leia os reais com
+-- `hyprctl getoption decoration:rounding` etc. antes de copiar estes, que
+-- vieram da maquina de referencia (looknfeel.lua, bloco do Omaland). Se
+-- mexer nos sliders depois, ajuste aqui tambem, ou o desligar devolve o
 -- valor errado.
 local normal = {
 	decoration = {
@@ -56,21 +59,27 @@ local jogo = {
 	},
 }
 
+local run = (os.getenv("HOME") or "") .. "/.local/share/omarchy-guest/bin/omarchy-guest-run "
+
 local function dnd(mudo)
-	hl.exec_cmd((os.getenv("HOME") or "") .. "/.local/share/omarchy-lab/dnd.sh " .. mudo)
+	hl.exec_cmd(run .. "omarchy-shell -q notifications setDnd " .. mudo)
 end
 
 function gaming.set(ativo)
 	ligado = ativo and true or false
 	hl.config(ligado and jogo or normal)
 	dnd(ligado and "true" or "false")
-	hl.exec_cmd("omarchy-osd -m " .. (ligado and "'Modo Gaming'" or "'Modo normal'"))
+	hl.exec_cmd(run .. "omarchy-osd -m " .. (ligado and "'Modo Gaming'" or "'Modo normal'"))
 end
 
 function gaming.toggle()
 	gaming.set(not ligado)
 end
 
+-- Cheque o combo contra o mapa do SEU host antes de copiar: num HyDE padrao
+-- SUPER+SHIFT+G colide com o game launcher. No macarch o certo foi
+-- SUPER+ALT+G com { locked = true }, substituindo o game mode do proprio
+-- HyDE - flags iguais as dele, senao os dois binds ficam vivos no combo.
 o.bind("SUPER + SHIFT + G", "Modo Gaming", function()
 	gaming.toggle()
 end)
