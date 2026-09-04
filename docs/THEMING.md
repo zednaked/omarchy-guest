@@ -53,6 +53,20 @@ not touch it. Load order decides again: a file loaded after the host's theme
 wins, and the user's `looknfeel` is loaded near the end of the chain, so that is
 where the override goes.
 
+**On a guest, `looknfeel.lua` is an orphan until you wire it.** Omarchy's own
+chain loads `~/.config/hypr/looknfeel.lua`; the host's chain has never heard of
+it. Anything that writes there - the Omaland panel does exactly that - edits a
+file nothing reads, with a failure mode built to confuse: Omaland previews via
+`hyprctl eval` (in memory, instant) and saves via write + `hyprctl reload`, and
+the reload re-runs a chain without the file, discarding the preview you just
+watched work. "I changed it and nothing changed" is this. The fix is two
+`dofile`s at the end of the user's `hyprland.lua`, in this order: `looknfeel.lua`
+first, then `hypr-theme.lua` from this project's state dir - which also fixes
+the themed border quietly resetting at login, since before this it was only
+ever applied live by the theme-set hook. And whatever restores a "normal" look
+by hand - the gaming toggle here does - must re-run those two files rather than
+trust frozen values.
+
 Three traps, in the order they bite:
 
 **1. The theme declares the border, so do not derive it.** `shell.toml` has a

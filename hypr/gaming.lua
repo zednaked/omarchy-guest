@@ -68,6 +68,19 @@ end
 function gaming.set(ativo)
 	ligado = ativo and true or false
 	hl.config(ligado and jogo or normal)
+	-- O "normal" congelado acima e fallback: a verdade do visual e o
+	-- looknfeel.lua (do Omaland, se instalado) + a borda do tema. Sem isto,
+	-- desligar o modo gaming restaura valores de quando este arquivo foi
+	-- escrito, nao os que o usuario ajustou depois no painel.
+	if not ligado then
+		for _, caminho in ipairs({
+			os.getenv("HOME") .. "/.config/hypr/looknfeel.lua",
+			os.getenv("HOME") .. "/.local/state/omarchy-guest/hypr-theme.lua",
+		}) do
+			local f = io.open(caminho, "r")
+			if f then f:close(); dofile(caminho) end
+		end
+	end
 	dnd(ligado and "true" or "false")
 	hl.exec_cmd(run .. "omarchy-osd -m " .. (ligado and "'Modo Gaming'" or "'Modo normal'"))
 end
