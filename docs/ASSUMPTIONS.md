@@ -219,6 +219,73 @@ installer. `doctor` checks for it when a Chromium-family browser is present.
 
 ---
 
+## 10. A managed block's "default" is the host's, not Hyprland's
+
+**Assumption:** a config panel that owns a fenced block in
+`~/.config/hypr/looknfeel.lua` writes only the keys you changed. Whatever it
+leaves out falls back to Hyprland's built-in default, because on a stock install
+nothing else in the chain sets those keys. The reference host's panel is
+Omaland; the pattern belongs to any plugin that manages a block.
+
+**As a guest:** the host's config manager ships an opinionated defaults layer
+that runs **earlier in the chain**. A key omitted from the block does not
+reveal Hyprland's default - it reveals the host's. So the panel's "put it back
+to default" is not a reset: it is a handover.
+
+Measured on the reference host (HyDE, whose
+`~/.local/share/hypr/lua/defaults.lua` sets `active_opacity = 0.90` and
+`inactive_opacity = 0.75`), reading one pixel inside an unfocused terminal
+with a busy wallpaper behind it:
+
+| block | `hyprctl getoption` | pixel |
+|---|---|---|
+| `inactive_opacity = 0.57` | 0.57 | `99 35 39` - wallpaper coming through |
+| `inactive_opacity = 1` | 1.00 | `24 26 31` - the terminal's own background |
+| **key removed** | **0.75** | `67 32 36` - translucent again |
+
+The failure is silent and self-consistent. The panel re-reads its own block, so
+it shows the row as "default" and agrees with itself; `hyprctl configerrors` is
+empty; nothing appears in the log. Only `hyprctl getoption` disagrees. The user
+symptom is "I set the slider to the maximum and the window is still
+see-through", which reads as "the panel does not save" and is not.
+
+**Cost:** high in wasted time, low to fix. Diagnosing it means suspecting the
+panel first, and the panel is innocent.
+
+**Fix:** never leave a row "at default" through the panel on a guest. If the
+value you want happens to equal the stock default, write the key explicitly
+anyway so the block keeps asserting it over the host's layer. It generalises to
+everything the host's defaults file touches, not just opacity.
+
+Diagnostic worth keeping - compare every key in the block against what the
+compositor actually holds, since the two are supposed to be identical:
+
+    hyprctl getoption decoration:inactive_opacity
+
+To measure blending without trusting your eye, sample a single pixel:
+
+    grim -g "<x>,<y> 1x1" -t ppm - | tail -c 3 | od -An -tu1
+
+### The second trap in the same family: `opacity` multiplies, `opaque` overrides
+
+Hyprland's `opacity` **window rule** is a multiplier on the
+`decoration:*_opacity` globals, not an override. A rule of `opacity = "1 1"`
+multiplies by one and changes nothing - no error, no log line, no pixel moved.
+The rule that actually forces a window solid is `opaque = true`.
+
+This matters as a guest because Omaland's **Full opacity** switch is the one
+control that writes outside `looknfeel.lua`: it appends
+`o.window(".*", { opacity = "1 1" })` to `hyprland.lua`. On a stock install that
+cancels Omarchy's own blanket `opacity "0.985 0.96"` from
+`default/hypr/windows.lua`. On a guest that blanket rule never loads, so the
+switch multiplies nothing by one and is **inert** - and, worse, it teaches the
+idiom, so the same `opacity = "1 1"` gets copied into a hand-written rule meant
+to force a window opaque, where it is equally inert. Omaland's own
+`Schema.js` says so plainly ("That rule multiplies with the globals below"); it
+is easy to read as an override and lose an afternoon.
+
+---
+
 ## Things that are NOT a problem
 
 Worth stating, because they are the usual worries:

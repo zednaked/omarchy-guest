@@ -74,6 +74,14 @@ ever applied live by the theme-set hook. And whatever restores a "normal" look
 by hand - the gaming toggle here does - must re-run those two files rather than
 trust frozen values.
 
+**And wiring it is only half.** Once `looknfeel.lua` is loaded, the panel's
+writes reach the compositor - but every key the panel *omits* falls through to
+the host's defaults layer, not to Hyprland's defaults. Putting a row back to
+its default through the panel hands that setting to the host. See
+[`ASSUMPTIONS.md` item 10](ASSUMPTIONS.md#10-a-managed-blocks-default-is-the-hosts-not-hyprlands),
+which also covers why `opacity` in a window rule multiplies instead of
+overriding.
+
 Three traps, in the order they bite:
 
 **1. The theme declares the border, so do not derive it.** `shell.toml` has a

@@ -98,6 +98,7 @@ Short version:
 | nothing else claims the notifications D-Bus name | the daemon's package dbus-activates it at boot | one user-unit mask |
 | the installer's ~150 packages are present | only what the shell calls matters | five packages; doctor lists them |
 | privileged helpers live in `/usr/bin` | a checkout has no packaged path | one root-once apply command |
+| a key left out of a panel's block falls back to Hyprland's default | it falls back to the host's defaults layer | silent; the panel agrees with itself |
 
 ## What ships here
 
