@@ -163,6 +163,24 @@ theme_image() {
     2>/dev/null | sort | head -1
 }
 
+# Antes de tudo: quem e o dono do fundo. Se o plugin `omarchy.background`
+# esta ligado, o dono e o shell deles - ele le o current/background sozinho,
+# inclusive video, e a tela de bloqueio deles le o mesmo arquivo. Chamar o
+# daemon do host aqui, nesse caso, so cria um segundo dono para a mesma coisa,
+# que e como esta maquina passou dias com o fundo do login trocando sozinho.
+# O bloco continua aqui para o host que AINDA pinta - um guest onde o plugin
+# foi desligado de proposito.
+background_plugin_disabled() {
+  local cfg="$HOME/.config/omarchy/shell.json"
+  [[ -f $cfg ]] || return 1
+  sed -n '/"disabledPlugins"/,/]/p' "$cfg" | grep -q '"omarchy\.background"'
+}
+
+if ! background_plugin_disabled; then
+  echo "  wallpaper: dono e o plugin omarchy.background (segue o tema sozinho)"
+  exit 0
+fi
+
 bg="$(readlink -f "${OMARCHY_STATE:-$HOME/.local/state/omarchy}/current/background" 2>/dev/null)"
 bg_video=""
 if [[ -n $bg ]] && is_video "$bg"; then

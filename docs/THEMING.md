@@ -116,13 +116,32 @@ eval."* Send that to `/dev/null` and it fails silently: the generated file is
 correct, the live value never moves, and it only appears to work because
 something else reloads later.
 
-### The wallpaper - the host's daemon owns the screen
+### The wallpaper - pick one painter, and let it read the file
 
-Omarchy records which image its theme wants, in `current/background`. On a guest
-install the host's wallpaper daemon is what actually paints. Pointing the host
-at Omarchy's choice keeps one daemon and makes the wallpaper follow the theme;
-enabling Omarchy's own background plugin instead means turning the host's off,
-or having two.
+Omarchy records which background its theme wants, in `current/background`. Two
+painters can read that file: the host's wallpaper daemon, or Omarchy's own
+`omarchy.background` plugin. The decision is not which one is better - it is
+that **only one of them may own the screen**.
+
+Driving the host from a hook works, and was the first arrangement here. It has
+a failure the hook cannot fix: the host's daemon remembers its own wallpaper
+and reapplies it at session start, so the login came up with the theme's image
+and swapped itself back a few seconds later. Painting over it on every theme
+change does not help - the host's state still wins the next boot.
+
+**Decided here (09/09/2026):** `omarchy.background` owns it, the host's
+wallpaper service is off in the host's config, and `theme-apply` skips the
+wallpaper entirely when that plugin is enabled. Three things follow the theme
+for free, because they all read the same file: the desktop, the lock screen
+(their `omarchy.lock` reads `current/background` and blurs it), and video
+backgrounds, which their painter handles natively since
+[#6792](https://github.com/basecamp/omarchy/pull/6792) and a host daemon that
+paints images cannot.
+
+The host branch is still in `theme-apply`, guarded by a check of
+`disabledPlugins` in `shell.json`, for a guest that turned the plugin off on
+purpose. Which is the honest shape of this file: not "the host owns the
+wallpaper", but "whoever owns it, the hook must not be the second owner".
 
 ### The boot splash and the login screen - literals, root, and the initramfs
 
@@ -150,7 +169,8 @@ through, it was a mix.
 ## The two commands
 
 ```bash
-omarchy-guest-theme-apply    # border, terminal, wallpaper - instant, no root
+omarchy-guest-theme-apply    # border, terminal, and the wallpaper the host
+                             # still owns - instant, no root
 omarchy-guest-theme-boot     # splash and login - root, rebuilds the initramfs
 ```
 

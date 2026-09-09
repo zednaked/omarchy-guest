@@ -148,9 +148,35 @@ installer wrote it.
 **As a guest:** a machine that never ran their installer does not have it, and
 the lock screen cannot authenticate.
 
-**Fix:** `omarchy apply lock` writes it (needs root), or leave `omarchy.lock`
+**Fix:** `omarchy-apply-lock` writes it (needs root), or leave `omarchy.lock`
 and `omarchy.idle` disabled in `shell.json` and keep the host's lock screen.
 Both are fine; the second requires no root.
+
+**Done here (09/09/2026), and the part that is not obvious:** the PAM file is
+one command. What takes thought is *who calls the lock*. Enabling
+`omarchy.lock` does not move the trigger: the plugin does not listen to logind,
+so `SUPER+L`, the menu's Lock row and suspend all still reached the host's
+locker. The trigger lives in one line of the host's idle daemon:
+
+```ini
+# ~/.config/hypr/hypridle.conf
+lock_cmd = PATH="$HOME/.local/share/omarchy/bin:$PATH" omarchy-system-lock
+```
+
+`PATH` inline because their commands call each other by bare name and the idle
+daemon's unit does not inherit the session `PATH` (assumption 3, in a place
+nobody looks). Keeping the host's idle daemon and moving only the lock screen
+is deliberate: idle policy is the host's, and the `omarchy-toggle-idle` shim
+depends on it.
+
+Two things follow for free. The Omarchy lock reads `current/background`
+itself, so the lock screen follows the theme with no hook; and with nothing
+else reading it, the host's wallpaper cache stopped being a dependency - see
+[`THEMING.md`](THEMING.md).
+
+Test it **before** moving the trigger: `omarchy-shell lock lock` while the
+host's locker is still wired. A lock screen that cannot authenticate is only
+recoverable from a TTY, at the cost of the session.
 
 ---
 

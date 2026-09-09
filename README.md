@@ -99,7 +99,7 @@ Short version:
 | helper table `o` is global | only exists if their chain ran | one `dofile`, no fork |
 | its autostart starts the bar | host may already run one | two bars |
 | nothing else runs a notification daemon | host usually does | duplicate notifications |
-| lock screen has its PAM file | fresh Arch does not | one command, needs root |
+| lock screen has its PAM file | fresh Arch does not | one command, needs root - but the trigger stays with the host until you move it |
 | nothing else claims the notifications D-Bus name | the daemon's package dbus-activates it at boot | one user-unit mask |
 | the installer's ~150 packages are present | only what the shell calls matters | five packages; doctor lists them |
 | privileged helpers live in `/usr/bin` | a checkout has no packaged path | one root-once apply command |
@@ -127,9 +127,12 @@ Short version:
   [`docs/UPSTREAM-CONTRACT.md`](docs/UPSTREAM-CONTRACT.md).
 - **`omarchy-guest-graph`** - reads the running machine and emits its ownership
   graph as JSON. Read-only; the board's machine map is generated from it.
-- **`omarchy-guest-theme-apply`** - makes the window border, the terminal and the
-  wallpaper follow the Omarchy theme. Instant, no root; wired to a `theme-set`
-  hook so it runs on every theme change.
+- **`omarchy-guest-theme-apply`** - makes the window border and the terminal
+  follow the Omarchy theme, plus the wallpaper on a host that still paints it.
+  Instant, no root; wired to a `theme-set` hook so it runs on every theme
+  change. Where `omarchy.background` is enabled it leaves the wallpaper alone -
+  the shell reads the theme's background itself, and a hook that repaints is
+  just a second owner.
 - **`omarchy-guest-theme-boot`** - the same for the boot splash and the login
   screen. Needs root and rebuilds the initramfs, so it stays a manual command,
   with `--dry-run`, `--no-initramfs` and `--restore`.

@@ -213,6 +213,19 @@ extract_qml_modules() {
   done | awk '{print $2}' | sed 's/^qs\.//' | sort -u
 }
 
+# Ids que o nosso arquivo de extensao CRIA em vez de sobrescrever. A asserção
+# se inverte: o id nao pode existir no menu deles. Se um dia existir, e colisao
+# - a nossa linha passaria a sobrescrever uma linha deles sem ninguem decidir
+# isso.
+is_newrow() { # id
+  local subject
+  while IFS=$'\t' read -r kind subject _rest; do
+    [[ $kind == newrow ]] || continue
+    [[ $subject == "$1" ]] && return 0
+  done < <(grep -v '^#' "$SURFACE" 2>/dev/null)
+  return 1
+}
+
 is_ignored() { # token
   local tok
   while IFS=$'\t' read -r kind subject _rest; do
@@ -309,7 +322,11 @@ done
 # ---------------------------------------------------------------------------
 section "Ids do menu que sobrescrevemos"
 for id in $(extract_menu_ids); do
-  verdict t_menu "menu:$id" "$id" "MENU-OVERRIDES" "$id"
+  if is_newrow "$id"; then
+    verdict absent:t_menu "menu:new:$id" "$id (linha nossa; colide se eles criarem o id)" "MENU-OVERRIDES" "$id"
+  else
+    verdict t_menu "menu:$id" "$id" "MENU-OVERRIDES" "$id"
+  fi
 done
 
 # ---------------------------------------------------------------------------

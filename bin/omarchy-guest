@@ -251,8 +251,37 @@ doctor() {
   else
     warn "/etc/pam.d/omarchy-lock-password missing"
     note "the Omarchy lock screen cannot authenticate without it"
-    note "fix: omarchy apply lock   (needs root, writes the PAM files)"
+    note "fix: omarchy-apply-lock   (needs root, writes the PAM files)"
     note "or keep your host's lock screen and leave omarchy.lock disabled"
+  fi
+
+  # O arquivo PAM e a metade barata. A que engana e o GATILHO: ligar o plugin
+  # nao move quem chama o lock. O plugin nao escuta o logind, entao SUPER+L, a
+  # linha Lock do menu e o suspend continuam caindo no locker do host ate que
+  # o daemon de idle DELE aponte para ca.
+  local lock_disabled=""
+  if [[ -f $HOME/.config/omarchy/shell.json ]]; then
+    lock_disabled=$(sed -n '/"disabledPlugins"/,/]/p' "$HOME/.config/omarchy/shell.json" | grep -c '"omarchy\.lock"')
+  fi
+  if [[ ${lock_disabled:-0} -gt 0 ]]; then
+    info "omarchy.lock is disabled - the host's lock screen is the one in use"
+  else
+    ok "omarchy.lock is enabled"
+    local lock_cmd=""
+    if [[ -f $HOME/.config/hypr/hypridle.conf ]]; then
+      lock_cmd=$(grep -m1 -E '^[[:space:]]*lock_cmd' "$HOME/.config/hypr/hypridle.conf" | sed 's/#.*//; s/^[[:space:]]*lock_cmd[[:space:]]*=[[:space:]]*//')
+      if [[ $lock_cmd == *omarchy* ]]; then
+        ok "the host's idle daemon locks with Omarchy: $lock_cmd"
+      elif [[ -n $lock_cmd ]]; then
+        warn "the plugin is on, but the lock trigger still goes to the host: $lock_cmd"
+        note "the plugin does not listen to logind - SUPER+L, the menu's Lock row and"
+        note "suspend all route through the host's idle daemon, so the lock screen you"
+        note "get is whatever this line says"
+        note "test first: omarchy-shell lock lock   (while the host's locker still works)"
+      fi
+    else
+      info "no hypridle.conf here - check what your host binds to lock-session"
+    fi
   fi
 
   # -- browser theme ---------------------------------------------------------

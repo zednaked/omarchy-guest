@@ -53,9 +53,9 @@ The host's session start launches these; Omarchy's autostart does not.
 
 | unit | process | covered by Omarchy? |
 |---|---|---|
-| `*-idle` | hypridle | no - its idle/lock plugins need a PAM file a fresh Arch lacks |
+| `*-idle` | hypridle | partially - the lock screen moved to `omarchy.lock` (09/09/2026); idle policy stays the host's, and the `omarchy-toggle-idle` shim depends on it |
 | polkit agent | polkitkdeauth.sh | no |
-| `*-wallpaper` | wallpaper.sh | no - its background plugin is disabled here |
+| `*-wallpaper` | wallpaper.sh | yes - `omarchy.background` owns the wallpaper and the host's service is off in the host config; nothing reads the host's wallpaper cache any more |
 | `*-clipboard-persist` | wl-clip-persist | no - Omarchy keeps history, not persistence |
 | `*-network-manager-applet` | nm-applet | partially - Omarchy has a bar widget, not a tray icon |
 | `*-bluetooth-applet` | blueman-applet | partially - same |
@@ -98,6 +98,12 @@ unfinished before this is decided.
 host is driven from a `theme-set` hook. Surface by surface, with the traps, in
 [`THEMING.md`](THEMING.md).
 
+The wallpaper came off that hook on 09/09/2026: `omarchy.background` paints it
+and reads `current/background` itself. What made the difference was not the
+painting - it was that the host's daemon remembers its own wallpaper and
+reapplies it at session start, so a hook that repaints on every theme change
+still loses the next login.
+
 ---
 
 ## Not load-bearing: already replaced, or never used
@@ -120,7 +126,11 @@ Each step is independently reversible. Do not skip to the end.
    what a login will do.
 2. **Port the keybindings you actually miss**, after living on Omarchy's map.
 3. **Decouple the updater** into this project.
-4. **Replace the session daemons** that Omarchy does not cover.
+4. **Replace the session daemons** that Omarchy does not cover. The lock screen
+   is done: `omarchy-apply-lock` writes the PAM file, `omarchy.lock` gets
+   enabled, and the host's idle daemon routes to it through one `lock_cmd`
+   line - see [`ASSUMPTIONS.md`](ASSUMPTIONS.md) item 6, including why enabling
+   the plugin alone does not move the trigger.
 5. **Pick one theme owner** and drive the other from a hook - see
    [`THEMING.md`](THEMING.md), which is this step done.
 6. Only then consider removing the host - and even then, the host being on disk

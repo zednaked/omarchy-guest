@@ -8,6 +8,8 @@
 #   grep     PADRAO::PATHSPEC tem que casar (o mecanismo continua vivo)
 #   absent   PADRAO::PATHSPEC NAO pode casar (nossa premissa deixou de valer se casar)
 #   watch    PATHSPEC vigiado por `--commits` (quais commits deles mexem no que e nosso)
+#   newrow   id de menu que o nosso arquivo CRIA: a asserção inverte, ele nao
+#            pode existir no menu deles (se existir, e colisao)
 #   ignore   token que a extracao automatica pega mas nao e comando de verdade
 #
 # Comandos, ids de menu e simbolos QML NAO entram aqui: sao extraidos do proprio
@@ -21,6 +23,9 @@ file	bin/omarchy-theme-set	escreve current/theme e current/background, que o gue
 file	shell/services/PluginRegistry.qml	varre ~/.config/omarchy/plugins, onde nossos plugins sao copiados	HOST-INVENTORY
 file	shell/plugins/menu/Menu.qml	le o arquivo de extensao do menu	MENU-OVERRIDES
 file	etc/sudoers.d/omarchy-theme-browser	regra que omarchy-guest-apply-browser-policy instala	ASSUMPTIONS 9
+file	bin/omarchy-apply-lock	escreve o PAM do lock; e o comando suportado deles, nao escrevemos o arquivo na mao	ASSUMPTIONS 6
+file	bin/omarchy-system-lock	o lock_cmd do daemon de idle do host chama este comando	ASSUMPTIONS 6
+file	shell/plugins/lock/Service.qml	o plugin que desenha a tela de bloqueio desta maquina	ASSUMPTIONS 6
 
 grep	config/omarchy/plugins::shell/services/PluginRegistry.qml	o diretorio de plugins do usuario continua sendo esse	HOST-INVENTORY
 grep	extensions/omarchy-menu\.jsonc::shell/plugins/menu/Menu.qml	o menu continua lendo a extensao do usuario	MENU-OVERRIDES
@@ -28,6 +33,9 @@ grep	HOOK_DIR::bin/omarchy-hook	hooks/<nome>.d continua sendo varrido	THEMING
 grep	schemaVersion::shell/services/PluginRegistry.qml	o manifesto dos nossos plugins ainda e validado por schemaVersion	HOST-INVENTORY
 grep	state/omarchy/current::bin/omarchy-theme-set	o tema corrente continua publicado em state/omarchy/current	THEMING
 grep	indicators::bin/omarchy-toggle-idle	o shim de Stay Awake depende do indicador em state/omarchy/indicators	MENU-OVERRIDES
+grep	omarchy-lock-password::bin/omarchy-apply-lock	o nome do servico PAM que o lock autentica contra	ASSUMPTIONS 6
+grep	current/background::shell/plugins/lock/Service.qml	a tela de bloqueio le o fundo do tema sozinha - e por isso que o wallpaper saiu do theme-apply	THEMING
+grep	target: "lock"::shell/plugins/lock/Service.qml	o alvo IPC que `omarchy-shell lock ...` usa	ASSUMPTIONS 6
 
 # Listas que copiamos deles. O risco aqui nao e o mecanismo sumir - e a lista
 # crescer la e a nossa copia ficar calada para tras.
@@ -51,6 +59,9 @@ watch	shell/services/PluginRegistry.qml	como os plugins sao descobertos e valida
 watch	shell/plugins/bar/	quem hospeda os widgets de barra	HOST-INVENTORY
 watch	shell/plugins/menu/	quem le a extensao do menu	MENU-OVERRIDES
 watch	shell/shell.qml	o que o shell injeta em cada plugin	HOST-INVENTORY
+watch	shell/plugins/lock/	a tela de bloqueio desta maquina	ASSUMPTIONS 6
+
+newrow	update.omarchy-repo	linha nossa: abre o repositorio deles, nao existe no menu original	MENU-OVERRIDES
 
 # Falsos positivos da extracao de comandos: aparecem no nosso codigo, mas nao
 # sao arquivos de bin/ deles.
