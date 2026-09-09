@@ -1,0 +1,25 @@
+# O que fazer com cada migration deles, por CLASSE do que ela faz.
+#
+# Uma migration nao e config: e um script que roda na sua maquina uma vez, com
+# o seu usuario, as vezes com sudo. Numa instalacao deles isso e o mecanismo de
+# upgrade. Num guest, e o lugar onde a opiniao deles vira acao numa maquina que
+# nao e deles - e onde "menos opinativo" precisa de uma decisao explicita, nao
+# de um `omarchy-migrate` cego.
+#
+# Marcar uma migration como skip NAO a esconde: escreve o marcador em
+# ~/.local/state/omarchy/migrations/<id>.sh, que e a mesma coisa que o runner
+# deles escreve quando ela roda. Para eles fica "resolvida" e nunca mais volta;
+# aqui fica registrada, com motivo, em contract/migrations-skipped.tsv.
+#
+# classe	acao	por que
+pkg	skip	instala software. Num guest quem manda em pacote e o host - aqui o updater e o do HyDE, e uma migration que chama pacman por fora sai do inventario que a barra mostra.
+root	ask	escreve em /etc, /usr ou /var, ou chama sudo. Nao e proibido: e caso a caso, e nunca no meio de um lote automatico.
+host-config	skip	escreve config fora do territorio do Omarchy (~/.config/omarchy, ~/.local/state/omarchy). E o dono do host que decide o que ha nesses arquivos.
+missing-tool	skip	chama um comando que nao existe nesta maquina - toolchain do instalador deles. Nao e opcional pular: o `omarchy-migrate` roda com set -e e uma falha dessas aborta o lote inteiro, levando junto as migrations que vinham depois.
+omarchy	run	so mexe no que e deles. Rodar.
+
+# Decisoes por id, quando a classe nao decide sozinha. Vencem a classe.
+# id:<arquivo>	acao	por que (conferido NA MAQUINA, nao no titulo da migration)
+id:1787843905.sh	skip	linka as skills deles em ~/.hermes/skills. Nao ha hermes instalado aqui; se um dia houver, apagar o marcador refaz.
+id:1788662350.sh	skip	instala hooks de suspend em /usr/lib/systemd/system-sleep e um drop-in de supergfxd. Territorio do sistema, e o force-igpu mexe em GPU hibrida numa maquina cujo setup de jogos (prime-run, sem MUX) foi ajustado a mao.
+id:1788862626.sh	run	so age se houver um Elgato Cam Link 4K no barramento. Nao ha; roda e sai.

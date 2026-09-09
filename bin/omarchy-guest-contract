@@ -181,10 +181,13 @@ verdict() {
 # ---------------------------------------------------------------------------
 # o que extraimos do nosso proprio repo
 # ---------------------------------------------------------------------------
-guest_sources() { # arquivos nossos que referenciam o upstream, menos este script
+# Fora da extracao: as ferramentas que FALAM sobre os comandos deles em vez de
+# chamarem. O classificador de migrations carrega `omarchy-install-` num regex,
+# que nao e um comando e nunca vai existir em bin/ deles.
+guest_sources() { # arquivos nossos que referenciam o upstream, menos as ferramentas
   find "$GUEST_ROOT/bin" "$GUEST_ROOT/lib" "$GUEST_ROOT/shims" "$GUEST_ROOT/hooks" \
        "$GUEST_ROOT/extensions" "$GUEST_ROOT/plugins" -type f 2>/dev/null \
-    | grep -v '/omarchy-guest-contract$'
+    | grep -vE '/omarchy-guest-(contract|migrations)$'
 }
 
 extract_cmds() {

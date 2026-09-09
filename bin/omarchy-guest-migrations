@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# omarchy-guest-migrations - decide, one by one, what their upgrade scripts
+# are allowed to do to a machine that is not theirs.
+#
+# `omarchy-migrate` runs every pending migration in order, no questions. That
+# is right for a machine Omarchy installed. On a guest it is the one place
+# where their opinion executes: the pending batch on 09/09/2026 installed seven
+# packages, two mise tools and a browser integration, none of which the guest
+# asked for, and one rewrote the host's kitty config.
+#
+# This reads the migrations from any ref, classifies each by what it actually
+# does, and applies the policy in contract/migration-policy.tsv. Skipping is
+# not hiding: it writes the same marker their runner writes, so the migration
+# is resolved forever, and records it with a reason in
+# contract/migrations-skipped.tsv.
+#
+#   omarchy-guest-migrations                      # what is pending, classified
+#   omarchy-guest-migrations --ref origin/quattro # before pulling
+#   omarchy-guest-migrations --ref origin/quattro --apply-policy
+#   omarchy-guest-migrations --run                # apply policy, then omarchy-migrate
+set -uo pipefail
+
+VERSION="0.1.0"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GUEST_ROOT="$(cd "$here/.." && pwd)"
+POLICY="$GUEST_ROOT/contract/migration-policy.tsv"
+LEDGER="$GUEST_ROOT/contract/migrations-skipped.tsv"
+STATE_DIR="${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}"
+
+if [[ -t 1 ]]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; RESET=$'\033[0m'
+  GREEN=$'\033[32m'; YELLOW=$'\033[33m'; RED=$'\033[31m'; BLUE=$'\033[34m'
+else
+  BOLD=""; DIM=""; RESET=""; GREEN=""; YELLOW=""; RED=""; BLUE=""
+fi
+die() { printf '%serro:%s %s\n' "$RED" "$RESET" "$*" >&2; exit 3; }
+
+REF=""; APPLY=0; RUN=0
+while (($#)); do
+  case $1 in
+    --ref)          REF="${2:-}"; shift 2 ;;
+    --apply-policy) APPLY=1; shift ;;
+    --run)          APPLY=1; RUN=1; shift ;;
+    -h|--help)      sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *)              die "opcao desconhecida: $1" ;;
+  esac
+done
+
+OMARCHY_PATH="${OMARCHY_PATH:-$HOME/.local/share/omarchy}"
+[[ -d $OMARCHY_PATH ]] || die "sem checkout do Omarchy em $OMARCHY_PATH"
+
+# Le a migration da arvore pedida sem tocar no checkout: `git show`, nao
+# checkout - o shell que esta rodando sai do mesmo diretorio.
+read_migration() { # id
+  if [[ -n $REF ]]; then
+    git -C "$OMARCHY_PATH" show "$REF:migrations/$1" 2>/dev/null
+  else
+    cat "$OMARCHY_PATH/migrations/$1" 2>/dev/null
+  fi
+}
+
+list_migrations() {
+  if [[ -n $REF ]]; then
+    git -C "$OMARCHY_PATH" ls-tree --name-only "$REF" migrations/ 2>/dev/null | sed 's|migrations/||'
+  else
+    ls -1 "$OMARCHY_PATH/migrations" 2>/dev/null
+  fi
+}
+
+# A descricao e deles: toda migration abre com um echo dizendo o que faz.
+describe() { read_migration "$1" | grep -m1 -oE '^echo "[^"]+"' | sed 's/^echo "//; s/"$//'; }
+
+# Classificacao por o que o script FAZ, na ordem em que a duvida importa:
+# mexer no host manda mais que instalar pacote, que manda mais que pedir root.
+# Quais comandos a migration chama e nao existem nesta maquina.
+#
+# Isto nao e teoria: `omarchy-migrate` roda com set -e, entao UMA migration
+# escrita contra a toolchain deles (mise, hermes, fprintd) aborta o lote
+# inteiro, e as que vinham depois nem sao tentadas. Num guest isso e o modo de
+# falha mais comum - eles pressupoem o proprio instalador.
+missing_tools() { # id -> lista de comandos ausentes
+  local body; body="$(read_migration "$1")"
+  local defined cand out=""
+  defined=$(grep -oE '^[a-z_][a-z0-9_]*\(\)' <<<"$body" | tr -d '()')
+  while read -r cand; do
+    [[ -n $cand ]] || continue
+    case " if then else elif fi for while do done case esac function local return exit echo cd set export read printf eval source exec test true false [[ " in
+      *" $cand "*) continue ;;
+    esac
+    grep -qx "$cand" <<<"$defined" && continue
+    command -v "$cand" >/dev/null 2>&1 && continue
+    grep -qx "$cand" <<<"$out" || out+="$cand"$'\n'
+  done < <(grep -oE '^[[:space:]]*[a-z][a-z0-9_.-]+' <<<"$body" | tr -d ' \t' | sort -u)
+  printf '%s' "${out%$'\n'}"
+}
+
+classify() { # id -> classe
+  local body; body="$(read_migration "$1")"
+  [[ -n $(missing_tools "$1") ]] && { printf 'missing-tool'; return; }
+  if grep -qE '\$HOME/\.config/(kitty|hypr|alacritty|ghostty|foot|waybar|rofi|dunst|fontconfig)|\.local/share/fonts|\.config/systemd/user|\.bashrc|\.zshrc|\.config/environment\.d' <<<"$body"; then
+    printf 'host-config'; return
+  fi
+  if grep -qE 'omarchy-pkg-add|omarchy-mise-install|omarchy-install-|pacman -S|yay -S|paru -S|omarchy-pkg-aur-install' <<<"$body"; then
+    printf 'pkg'; return
+  fi
+  if grep -qE '(^|[^a-z-])sudo |/etc/|/usr/(lib|share|bin)/|/var/lib/' <<<"$body"; then
+    printf 'root'; return
+  fi
+  printf 'omarchy'
+}
+
+# Uma decisao por id vence a classe: a classe e uma leitura do que o script
+# toca, e as vezes so olhar a maquina resolve (o hardware nao esta aqui, o
+# programa nao esta instalado). O motivo fica no proprio arquivo de politica.
+policy_for() { # id classe -> acao
+  local byid
+  byid=$(awk -F'\t' -v i="id:$1" '$1==i {print $2; exit}' "$POLICY" 2>/dev/null)
+  [[ -n $byid ]] && { printf '%s' "$byid"; return; }
+  awk -F'\t' -v c="$2" '$1==c {print $2; exit}' "$POLICY" 2>/dev/null
+}
+policy_why() {
+  awk -F'\t' -v c="$1" '$1==c {print $3; exit}' "$POLICY" 2>/dev/null
+}
+
+printf '%somarchy-guest migrations%s  v%s\n' "$BOLD" "$RESET" "$VERSION"
+printf '  arvore:   %s\n' "${REF:-checkout instalado}"
+printf '  markers:  %s\n' "$STATE_DIR"
+printf '%sler nao muda nada; --apply-policy escreve marcadores%s\n\n' "$DIM" "$RESET"
+
+declare -a SKIP_IDS=() SKIP_CLASSES=() SKIP_DESCS=()
+runs=0; asks=0; skips=0; pend=0
+
+while read -r m; do
+  [[ -n $m ]] || continue
+  [[ -f $STATE_DIR/$m ]] && continue
+  pend=$((pend+1))
+  class="$(classify "$m")"
+  action="$(policy_for "$m" "$class")"
+  desc="$(describe "$m")"
+  case $action in
+    run)  runs=$((runs+1));  printf '  %s+%s %-16s %s%s%s\n' "$GREEN" "$RESET" "[$class]" "$DIM" "$desc" "$RESET" ;;
+    ask)  asks=$((asks+1));  printf '  %s?%s %-16s %s\n' "$YELLOW" "$RESET" "[$class]" "$desc"
+          printf '      %s%s%s\n' "$DIM" "$m - decidir a mao: omarchy-guest-migrations --ref ${REF:-HEAD} e ler o script" "$RESET" ;;
+    skip) skips=$((skips+1)); printf '  %s-%s %-16s %s\n' "$BLUE" "$RESET" "[$class]" "$desc"
+          [[ $class == missing-tool ]] &&
+            printf '      %sfalta aqui: %s%s\n' "$DIM" "$(missing_tools "$m" | tr '\n' ' ')" "$RESET"
+          SKIP_IDS+=("$m"); SKIP_CLASSES+=("$class"); SKIP_DESCS+=("$desc") ;;
+    *)    printf '  %s!%s %-16s %s (classe sem politica)\n' "$RED" "$RESET" "[$class]" "$desc" ;;
+  esac
+done < <(list_migrations)
+
+printf '\n%sResumo%s  %d pendente(s): %d para rodar, %d para pular, %d para decidir a mao\n' \
+  "$BOLD" "$RESET" "$pend" "$runs" "$skips" "$asks"
+
+if (( ! APPLY )); then
+  (( pend )) && printf '  %s--apply-policy escreve os marcadores dos %d que a politica pula%s\n' "$DIM" "$skips" "$RESET"
+  exit 0
+fi
+
+# Marcar = escrever o mesmo arquivo que o runner deles escreve ao terminar uma
+# migration. Nao ha API para "pular"; o marcador E a API, e por isso o motivo
+# fica registrado aqui, e nao so na cabeca de quem rodou.
+mkdir -p "$STATE_DIR"
+[[ -f $LEDGER ]] || {
+  printf '# Migrations do Omarchy que este guest resolveu NAO rodar.\n' >"$LEDGER"
+  printf '# Escrito por omarchy-guest-migrations --apply-policy. Colunas:\n' >>"$LEDGER"
+  printf '# id\tclasse\tdata\tmaquina\tdescricao deles\n' >>"$LEDGER"
+}
+for i in ${SKIP_IDS[@]+"${!SKIP_IDS[@]}"}; do
+  printf '%s\n' "skipped by omarchy-guest: ${SKIP_CLASSES[$i]} - $(date -I)" >"$STATE_DIR/${SKIP_IDS[$i]}"
+  grep -q "^${SKIP_IDS[$i]}	" "$LEDGER" 2>/dev/null ||
+    printf '%s\t%s\t%s\t%s\t%s\n' "${SKIP_IDS[$i]}" "${SKIP_CLASSES[$i]}" "$(date -I)" "$(uname -n)" "${SKIP_DESCS[$i]}" >>"$LEDGER"
+done
+printf '  %s%d marcador(es) escrito(s), registrados em contract/migrations-skipped.tsv%s\n' "$GREEN" "${#SKIP_IDS[@]}" "$RESET"
+
+if (( RUN )); then
+  printf '\n%sRodando as que sobraram (omarchy-migrate)%s\n' "$BOLD" "$RESET"
+  PATH="$OMARCHY_PATH/bin:$PATH" OMARCHY_PATH="$OMARCHY_PATH" omarchy-migrate
+fi

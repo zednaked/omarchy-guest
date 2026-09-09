@@ -1,0 +1,15 @@
+# Migrations do Omarchy que este guest resolveu NAO rodar.
+# Escrito por omarchy-guest-migrations --apply-policy. Colunas:
+# id	classe	data	maquina	descricao deles
+1786609204.sh	pkg	2026-09-09	zephyrus	Install native video wallpaper playback dependencies
+1787760281.sh	pkg	2026-09-09	zephyrus	Install the Hermes CLI wrapper for existing installs
+1787843905.sh	root	2026-09-09	zephyrus	Link Omarchy agent skills into Hermes skill directories
+1788577553.sh	pkg	2026-09-09	zephyrus	Install Cursor CLI via mise wrapper
+1788595060.sh	pkg	2026-09-09	zephyrus	Register the Chromium extension native messaging hosts for Brave Origin
+1788596255.sh	pkg	2026-09-09	zephyrus	Add vi as a standard terminal editor
+1788662350.sh	root	2026-09-09	zephyrus	Repair user-owned system-sleep hooks and hybrid GPU service configuration
+1788724825.sh	pkg	2026-09-09	zephyrus	Install Muse Code via mise wrapper
+1788745941.sh	host-config	2026-09-09	zephyrus	Update Kitty configuration
+1788848726.sh	host-config	2026-09-09	zephyrus	Retire the stock user icon font missed by the Quattro upgrade
+1788941927.sh	pkg	2026-09-09	zephyrus	Install basecamp (basecamp-cli) via mise wrapper
+1787215483.sh	missing-tool	2026-09-09	zephyrus	Stop mise upgrades from pruning versions still in use
