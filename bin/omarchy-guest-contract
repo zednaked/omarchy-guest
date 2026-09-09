@@ -1,0 +1,378 @@
+#!/usr/bin/env bash
+# omarchy-guest-contract - check this repo against a given Omarchy tree.
+#
+# The guest is glue: it calls their commands by name, overrides rows in their
+# menu, drops plugins into the directory their shell scans, and reads state
+# files they write. None of that is an API they promised. This command turns
+# every one of those into an assertion that can be run BEFORE their update
+# lands, against any ref, without touching the installed checkout.
+#
+# Read-only. It never writes to the system and never moves the Omarchy repo.
+#
+#   omarchy-guest-contract                       # against the installed tree
+#   omarchy-guest-contract --ref origin/quattro  # against what is coming
+#   omarchy-guest-contract --ref origin/quattro --commits
+#   omarchy-guest-contract --ref origin/quattro --json
+#
+# The verdict is differential on purpose: an assertion that already failed on
+# the pinned ref is not a regression, it is a note that rotted. Only what
+# passed on the baseline and fails on the target is a break.
+set -uo pipefail
+
+VERSION="0.1.0"
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GUEST_ROOT="$(cd "$here/.." && pwd)"
+SURFACE="$GUEST_ROOT/contract/surface.tsv"
+PIN="$GUEST_ROOT/contract/verified"
+
+# ---------------------------------------------------------------------------
+# output
+# ---------------------------------------------------------------------------
+if [[ -t 1 ]]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; RESET=$'\033[0m'
+  GREEN=$'\033[32m'; YELLOW=$'\033[33m'; RED=$'\033[31m'
+else
+  BOLD=""; DIM=""; RESET=""; GREEN=""; YELLOW=""; RED=""
+fi
+
+JSON=0
+QUIET=0
+SHOW_COMMITS=0
+TARGET_REF=""
+BASE_REF=""
+OMARCHY_ARG=""
+
+declare -a R_STATUS R_ID R_MSG R_DOC
+BREAKS=0; STALES=0; OKS=0
+
+# Em --json o relatorio legivel vai para stderr: stdout tem que ser so JSON,
+# senao a linha da quebra entra no meio do objeto e o parser do outro lado
+# morre - foi o que aconteceu na primeira rodada.
+out() { if (( JSON )); then printf "$@" >&2; else printf "$@"; fi; }
+
+record() { # status id msg doc
+  R_STATUS+=("$1"); R_ID+=("$2"); R_MSG+=("$3"); R_DOC+=("${4:--}")
+  case $1 in
+    ok)    OKS=$((OKS+1));    (( QUIET )) || out '  %s+%s %s\n' "$GREEN" "$RESET" "$3" ;;
+    broke) BREAKS=$((BREAKS+1)); out '  %sx%s %s\n' "$RED" "$RESET" "$3"
+           [[ ${4:-} && ${4:-} != "-" ]] && out '      %sdoc: %s%s\n' "$DIM" "$4" "$RESET" ;;
+    stale) STALES=$((STALES+1)); (( QUIET )) || out '  %s!%s %s\n' "$YELLOW" "$RESET" "$3" ;;
+  esac
+}
+
+section() { (( QUIET )) || out '\n%s%s%s\n' "$BOLD" "$*" "$RESET"; }
+die()     { printf '%serro:%s %s\n' "$RED" "$RESET" "$*" >&2; exit 3; }
+
+usage() {
+  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  exit 0
+}
+
+# ---------------------------------------------------------------------------
+# where their tree is
+# ---------------------------------------------------------------------------
+resolve_repo() {
+  local candidate
+  for candidate in "$OMARCHY_ARG" "${OMARCHY_PATH:-}" "$HOME/.local/share/omarchy" /usr/share/omarchy; do
+    [[ -n $candidate && -d $candidate ]] || continue
+    printf '%s' "$candidate"
+    return 0
+  done
+  return 1
+}
+
+# Materializa um ref numa pasta temporaria com `git archive`. De proposito nao
+# usa worktree nem checkout: a instalacao dele esta rodando agora, e conferir o
+# que vem nao pode mexer no que esta no ar.
+TMPROOT=""
+cleanup() { [[ -n $TMPROOT && -d $TMPROOT ]] && rm -rf "$TMPROOT"; }
+trap cleanup EXIT
+
+materialize() { # repo ref -> prints dir
+  local repo="$1" ref="$2" dir
+  git -C "$repo" rev-parse --verify --quiet "$ref^{commit}" >/dev/null \
+    || die "ref desconhecido em $repo: $ref (falta um git fetch?)"
+  [[ -z $TMPROOT ]] && TMPROOT="$(mktemp -d "${TMPDIR:-/tmp}/omarchy-guest-contract.XXXXXX")"
+  dir="$TMPROOT/$(printf '%s' "$ref" | tr '/' '_')"
+  mkdir -p "$dir"
+  git -C "$repo" archive "$ref" | tar -x -C "$dir" || die "falhou extrair $ref"
+  printf '%s' "$dir"
+}
+
+# ---------------------------------------------------------------------------
+# primitivas sobre uma arvore
+# ---------------------------------------------------------------------------
+t_file()  { [[ -e "$1/$2" ]]; }
+t_grep()  { # tree pattern pathspec
+  local tree="$1" pat="$2" spec="$3"
+  [[ -e "$tree/$spec" ]] || return 1
+  grep -rqE -- "$pat" "$tree/$spec" 2>/dev/null
+}
+t_cmd()   { [[ -f "$1/bin/$2" ]]; }
+
+# t_echo: tudo que casa PADRAO no arquivo DELES tem que aparecer tambem num
+# arquivo NOSSO. E o teste para as listas que copiamos - extensoes de imagem,
+# nomes de estado - onde o perigo nao e o mecanismo sumir, e a lista crescer do
+# lado deles e a nossa copia ficar para tras, calada.
+# Normalizacao unica e documentada: do casamento fica so o que vem depois de
+# `*.` e antes da proxima aspa - entao `-iname '*.avif'` vira `avif`.
+t_echo()  { # tree pattern their_spec our_relpath
+  local tree="$1" pat="$2" spec="$3" ours="$GUEST_ROOT/$4" token
+  [[ -e "$tree/$spec" && -e $ours ]] || return 1
+  while read -r token; do
+    [[ -n $token ]] || continue
+    grep -qF -- "$token" "$ours" || return 1
+  done < <(grep -rhoE -- "$pat" "$tree/$spec" 2>/dev/null | sed "s/.*\*\.//; s/'.*//" | sort -u)
+  return 0
+}
+t_menu()  { grep -q "\"$2\"" "$1/default/omarchy/omarchy-menu.jsonc" 2>/dev/null; }
+# Um simbolo QML nao vale "existe em algum lugar do shell/": vale existir no
+# objeto que o NOSSO plugin recebe. Depois de "Restrict third-party shell plugin
+# capabilities" (01/09/2026) um widget de terceiro nao recebe mais a Bar deles,
+# recebe a fachada Ui/PluginBarApi.qml. Uma propriedade que sobreviveu na Bar e
+# ficou de fora da fachada le como "ok" num grep amplo e chega nula em runtime.
+qml_home() { # tree prefix -> arquivo onde o simbolo tem que estar
+  local tree="$1" prefix="$2"
+  case $prefix in
+    bar)   if [[ -f "$tree/shell/Ui/PluginBarApi.qml" ]]; then
+             printf 'shell/Ui/PluginBarApi.qml'
+           else
+             printf 'shell/plugins/bar/Bar.qml'
+           fi ;;
+    Color) printf 'shell/Commons/Color.qml' ;;
+    Style) printf 'shell/Commons/Style.qml' ;;
+    *)     printf 'shell' ;;
+  esac
+}
+
+t_sym()   { # tree prefix.name
+  local tree="$1" prefix="${2%%.*}" name="${2#*.}" file
+  file="$(qml_home "$tree" "$prefix")"
+  [[ -e "$tree/$file" ]] || return 1
+  grep -rqw -- "$name" "$tree/$file" 2>/dev/null
+}
+
+# verdict TEST_FN ID MSG DOC [args...]
+# Roda o teste no alvo e, se houver baseline, tambem nela. So e quebra o que
+# passava antes.
+verdict() {
+  local fn="$1" id="$2" msg="$3" doc="$4"; shift 4
+  local invert=0
+  [[ $fn == absent:* ]] && { invert=1; fn="${fn#absent:}"; }
+
+  local t=1 b=1
+  "$fn" "$TARGET" "$@" || t=0
+  (( invert )) && t=$(( 1 - t ))
+
+  if (( t )); then record ok "$id" "$msg" "$doc"; return; fi
+
+  if [[ -n $BASELINE ]]; then
+    "$fn" "$BASELINE" "$@" || b=0
+    (( invert )) && b=$(( 1 - b ))
+    if (( b )); then record broke "$id" "$msg - QUEBROU entre $BASE_LABEL e $TARGET_LABEL" "$doc"
+    else            record stale "$id" "$msg - ja falhava em $BASE_LABEL (nota defasada, nao regressao)" "$doc"
+    fi
+  else
+    record broke "$id" "$msg - falha (sem baseline para comparar)" "$doc"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# o que extraimos do nosso proprio repo
+# ---------------------------------------------------------------------------
+guest_sources() { # arquivos nossos que referenciam o upstream, menos este script
+  find "$GUEST_ROOT/bin" "$GUEST_ROOT/lib" "$GUEST_ROOT/shims" "$GUEST_ROOT/hooks" \
+       "$GUEST_ROOT/extensions" "$GUEST_ROOT/plugins" -type f 2>/dev/null \
+    | grep -v '/omarchy-guest-contract$'
+}
+
+extract_cmds() {
+  guest_sources | xargs grep -hoE '\bomarchy-[a-z0-9-]+' 2>/dev/null \
+    | grep -v '^omarchy-guest' | sort -u
+}
+
+extract_menu_ids() {
+  grep -oE '^[[:space:]]{2}"[a-zA-Z0-9._-]+"[[:space:]]*:' "$GUEST_ROOT/extensions/omarchy-menu.jsonc" 2>/dev/null \
+    | grep -oE '"[^"]+"' | tr -d '"' | sort -u
+}
+
+extract_qml_syms() {
+  local f
+  for f in "$GUEST_ROOT"/plugins/*/*.qml; do
+    [[ -f $f ]] || continue
+    grep -ohE '\b(bar|Color|Style)\.[A-Za-z_][A-Za-z0-9_]*' "$f"
+  done | sort -u
+}
+
+extract_qml_modules() {
+  local f
+  for f in "$GUEST_ROOT"/plugins/*/*.qml; do
+    [[ -f $f ]] || continue
+    grep -ohE '^import qs\.[A-Za-z.]+' "$f"
+  done | awk '{print $2}' | sed 's/^qs\.//' | sort -u
+}
+
+is_ignored() { # token
+  local tok
+  while IFS=$'\t' read -r kind subject _rest; do
+    [[ $kind == ignore ]] || continue
+    tok="$subject"
+    [[ $tok == "$1" ]] && return 0
+  done < <(grep -v '^#' "$SURFACE" 2>/dev/null)
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# argumentos
+# ---------------------------------------------------------------------------
+while (( $# )); do
+  case $1 in
+    --ref)      TARGET_REF="${2:-}"; shift 2 ;;
+    --baseline) BASE_REF="${2:-}"; shift 2 ;;
+    --omarchy)  OMARCHY_ARG="${2:-}"; shift 2 ;;
+    --commits)  SHOW_COMMITS=1; shift ;;
+    --json)     JSON=1; QUIET=1; shift ;;
+    --quiet)    QUIET=1; shift ;;
+    -h|--help)  usage ;;
+    *)          die "opcao desconhecida: $1 (--help)" ;;
+  esac
+done
+
+REPO="$(resolve_repo)" || die "nenhum checkout do Omarchy encontrado (--omarchy PATH)"
+[[ -f $SURFACE ]] || die "sem $SURFACE"
+
+# baseline: o ref fixado em contract/verified, salvo se o usuario disser outro
+if [[ -z $BASE_REF && -f $PIN ]]; then
+  BASE_REF="$(awk -F= '$1=="ref"{print $2}' "$PIN" | tr -d ' ')"
+fi
+
+TARGET=""; TARGET_LABEL=""
+if [[ -n $TARGET_REF ]]; then
+  git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || die "$REPO nao e um repositorio git; --ref precisa de um"
+  TARGET="$(materialize "$REPO" "$TARGET_REF")"
+  TARGET_LABEL="$TARGET_REF ($(git -C "$REPO" rev-parse --short "$TARGET_REF"))"
+else
+  TARGET="$REPO"
+  TARGET_LABEL="arvore instalada"
+  if git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
+    TARGET_LABEL="arvore instalada ($(git -C "$REPO" rev-parse --short HEAD))"
+  fi
+fi
+
+BASELINE=""; BASE_LABEL=""
+if [[ -n $BASE_REF ]] && git -C "$REPO" rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null 2>&1; then
+  BASELINE="$(materialize "$REPO" "$BASE_REF")"
+  BASE_LABEL="$BASE_REF ($(git -C "$REPO" rev-parse --short "$BASE_REF"))"
+fi
+
+(( QUIET )) || {
+  printf '%somarchy-guest contract%s  v%s\n' "$BOLD" "$RESET" "$VERSION"
+  printf '%salvo:%s    %s\n' "  " "$RESET" "$TARGET_LABEL"
+  printf '  baseline: %s\n' "${BASE_LABEL:-nenhuma - toda falha conta como quebra}"
+  printf '%sread-only: nao escreve nada, nao mexe no checkout%s\n' "$DIM" "$RESET"
+}
+
+# ---------------------------------------------------------------------------
+# 1. arquivos e mecanismos declarados em contract/surface.tsv
+# ---------------------------------------------------------------------------
+section "Arquivos e mecanismos deles"
+while IFS=$'\t' read -r kind subject why doc; do
+  [[ -z ${kind:-} || $kind == \#* ]] && continue
+  case $kind in
+    file)
+      verdict t_file "file:$subject" "$subject - $why" "$doc" "$subject" ;;
+    grep)
+      pat="${subject%%::*}"; spec="${subject##*::}"
+      verdict t_grep "grep:$spec" "$spec: $why" "$doc" "$pat" "$spec" ;;
+    absent)
+      pat="${subject%%::*}"; spec="${subject##*::}"
+      verdict absent:t_grep "absent:$spec" "$spec: $why" "$doc" "$pat" "$spec" ;;
+    echo)
+      pat="${subject%%::*}"; rest="${subject#*::}"
+      spec="${rest%%::*}"; ours="${rest##*::}"
+      verdict t_echo "echo:$ours" "$ours acompanha $spec: $why" "$doc" "$pat" "$spec" "$ours" ;;
+  esac
+done < <(grep -v '^#' "$SURFACE")
+
+# ---------------------------------------------------------------------------
+# 2. comandos deles que chamamos por nome puro
+# ---------------------------------------------------------------------------
+section "Comandos que chamamos"
+for cmd in $(extract_cmds); do
+  is_ignored "$cmd" && continue
+  verdict t_cmd "cmd:$cmd" "$cmd" "-" "$cmd"
+done
+
+# ---------------------------------------------------------------------------
+# 3. ids de menu que sobrescrevemos
+# ---------------------------------------------------------------------------
+section "Ids do menu que sobrescrevemos"
+for id in $(extract_menu_ids); do
+  verdict t_menu "menu:$id" "$id" "MENU-OVERRIDES" "$id"
+done
+
+# ---------------------------------------------------------------------------
+# 4. API QML que os plugins usam
+# ---------------------------------------------------------------------------
+section "API QML dos plugins"
+for mod in $(extract_qml_modules); do
+  verdict t_file "qml:module:$mod" "import qs.$mod (shell/$mod)" "HOST-INVENTORY" "shell/$mod"
+done
+for sym in $(extract_qml_syms); do
+  verdict t_sym "qml:sym:$sym" "$sym em $(qml_home "$TARGET" "${sym%%.*}")" "HOST-INVENTORY" "$sym"
+done
+
+# ---------------------------------------------------------------------------
+# 5. commits deles que tocam a nossa superficie
+# ---------------------------------------------------------------------------
+if (( SHOW_COMMITS )); then
+  section "Commits deles que tocam a nossa superficie"
+  if [[ -z $BASE_REF || -z $TARGET_REF ]]; then
+    out '  %s--commits precisa de --ref e de uma baseline%s\n' "$DIM" "$RESET"
+  else
+    mapfile -t specs < <(awk -F'\t' '$1=="watch"{print $2}' "$SURFACE")
+    # Os comandos deles entram um a um: `bin/` inteiro devolveria o lote todo.
+    for cmd in $(extract_cmds); do
+      is_ignored "$cmd" && continue
+      specs+=("bin/$cmd")
+    done
+    if (( JSON )); then
+      git -C "$REPO" log --oneline --no-merges "$BASE_REF..$TARGET_REF" -- "${specs[@]}" \
+        | sed 's/^/  /' >&2
+    else
+      git -C "$REPO" log --oneline --no-merges "$BASE_REF..$TARGET_REF" -- "${specs[@]}" \
+        | sed 's/^/  /'
+    fi
+    out '\n  %s%s de %s commits tocam a superficie do guest%s\n' "$DIM" \
+      "$(git -C "$REPO" rev-list --count --no-merges "$BASE_REF..$TARGET_REF" -- "${specs[@]}")" \
+      "$(git -C "$REPO" rev-list --count --no-merges "$BASE_REF..$TARGET_REF")" "$RESET"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# saida
+# ---------------------------------------------------------------------------
+if (( JSON )); then
+  printf '{\n  "version": "%s",\n  "target": "%s",\n  "baseline": "%s",\n' \
+    "$VERSION" "$TARGET_LABEL" "${BASE_LABEL:-}"
+  printf '  "host": "%s",\n  "date": "%s",\n' "$(uname -n)" "$(date -Iseconds)"
+  printf '  "summary": { "ok": %d, "broke": %d, "stale": %d },\n  "checks": [\n' "$OKS" "$BREAKS" "$STALES"
+  for i in "${!R_ID[@]}"; do
+    printf '    { "id": "%s", "status": "%s", "doc": "%s", "msg": "%s" }%s\n' \
+      "${R_ID[$i]}" "${R_STATUS[$i]}" "${R_DOC[$i]}" "${R_MSG[$i]//\"/\\\"}" \
+      "$([[ $i -lt $(( ${#R_ID[@]} - 1 )) ]] && printf ,)"
+  done
+  printf '  ]\n}\n'
+else
+  printf '\n%sResumo%s  %d ok, %d quebra(s), %d defasada(s)\n' "$BOLD" "$RESET" "$OKS" "$BREAKS" "$STALES"
+  if (( BREAKS )); then
+    printf '  %sconferir antes de deixar o update entrar%s\n' "$YELLOW" "$RESET"
+  elif [[ -n $TARGET_REF ]]; then
+    printf '  %s%s nao quebra nada que o guest depende%s\n' "$DIM" "$TARGET_REF" "$RESET"
+  fi
+fi
+
+(( BREAKS )) && exit 2
+(( STALES )) && exit 1
+exit 0

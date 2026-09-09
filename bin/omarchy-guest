@@ -95,6 +95,24 @@ doctor() {
     else
       ok "their bin/ is on PATH"
     fi
+
+    # Contrato: quanto do upstream mudou desde a ultima vez que este repo foi
+    # conferido. Nao busca na rede - so le o que ja foi baixado; um doctor que
+    # sai para a internet mente sobre o custo de rodar.
+    if git -C "$omarchy_path" rev-parse --git-dir >/dev/null 2>&1; then
+      local pinned="" upstream="" ahead=""
+      [[ -f $REPO/contract/verified ]] && pinned=$(awk -F= '$1=="ref"{print $2}' "$REPO/contract/verified" | tr -d ' ')
+      upstream=$(git -C "$omarchy_path" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)
+      if [[ -n $pinned && -n $upstream ]]; then
+        ahead=$(git -C "$omarchy_path" rev-list --count --no-merges "$pinned..$upstream" 2>/dev/null)
+        if [[ ${ahead:-0} -gt 0 ]]; then
+          warn "$ahead commits deles desde o ref conferido ($upstream)"
+          note "omarchy-guest-contract --ref $upstream --commits"
+        else
+          ok "upstream na altura do ref conferido em contract/verified"
+        fi
+      fi
+    fi
   else
     bad "no Omarchy checkout found"
     note "clone it, or install the package, then re-run"

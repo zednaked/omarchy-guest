@@ -1,0 +1,7 @@
+# O ref do Omarchy com que este repo foi conferido pela ultima vez.
+# E a baseline do omarchy-guest-contract: falha que ja existia aqui e nota
+# defasada, nao regressao. So mova depois de rodar o contract e o doctor na
+# maquina, com a sessao reiniciada.
+ref=f99d33a8ddee7b36509a71a6d20d5d23355ce8b1
+date=2026-09-09
+host=zephyrus

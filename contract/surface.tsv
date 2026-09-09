@@ -1,0 +1,61 @@
+# O contrato com o upstream: tudo que o guest le, chama ou pressupoe la dentro.
+# Uma linha por dependencia. Colunas separadas por TAB:
+#
+#   kind	subject	why	doc
+#
+# kind:
+#   file     o caminho tem que existir na arvore do upstream
+#   grep     PADRAO::PATHSPEC tem que casar (o mecanismo continua vivo)
+#   absent   PADRAO::PATHSPEC NAO pode casar (nossa premissa deixou de valer se casar)
+#   watch    PATHSPEC vigiado por `--commits` (quais commits deles mexem no que e nosso)
+#   ignore   token que a extracao automatica pega mas nao e comando de verdade
+#
+# Comandos, ids de menu e simbolos QML NAO entram aqui: sao extraidos do proprio
+# repo a cada rodada. Lista escrita a mao apodrece; o codigo e a fonte.
+
+file	default/hypr/helpers.lua	lib/guest.lua faz dofile nele para ter a tabela `o`	ASSUMPTIONS 2
+file	default/omarchy/omarchy-menu.jsonc	menu base que extensions/omarchy-menu.jsonc sobrescreve	MENU-OVERRIDES
+file	config/omarchy/extensions/omarchy-menu.jsonc	template comentado do arquivo de extensao	MENU-OVERRIDES
+file	bin/omarchy-hook	roda hooks/theme-set.d, onde mora nosso hook de tema	THEMING
+file	bin/omarchy-theme-set	escreve current/theme e current/background, que o guest le	THEMING
+file	shell/services/PluginRegistry.qml	varre ~/.config/omarchy/plugins, onde nossos plugins sao copiados	HOST-INVENTORY
+file	shell/plugins/menu/Menu.qml	le o arquivo de extensao do menu	MENU-OVERRIDES
+file	etc/sudoers.d/omarchy-theme-browser	regra que omarchy-guest-apply-browser-policy instala	ASSUMPTIONS 9
+
+grep	config/omarchy/plugins::shell/services/PluginRegistry.qml	o diretorio de plugins do usuario continua sendo esse	HOST-INVENTORY
+grep	extensions/omarchy-menu\.jsonc::shell/plugins/menu/Menu.qml	o menu continua lendo a extensao do usuario	MENU-OVERRIDES
+grep	HOOK_DIR::bin/omarchy-hook	hooks/<nome>.d continua sendo varrido	THEMING
+grep	schemaVersion::shell/services/PluginRegistry.qml	o manifesto dos nossos plugins ainda e validado por schemaVersion	HOST-INVENTORY
+grep	state/omarchy/current::bin/omarchy-theme-set	o tema corrente continua publicado em state/omarchy/current	THEMING
+grep	indicators::bin/omarchy-toggle-idle	o shim de Stay Awake depende do indicador em state/omarchy/indicators	MENU-OVERRIDES
+
+# Listas que copiamos deles. O risco aqui nao e o mecanismo sumir - e a lista
+# crescer la e a nossa copia ficar calada para tras.
+echo	iname '\*\.[a-z0-9]+'::bin/omarchy-theme-set::bin/omarchy-guest-theme-apply	as extensoes que o current/background pode ter (video entrou em 09/2026 e o wallpaper.sh do host so pinta imagem)	THEMING
+
+# Premissas nossas, escritas como "isto nao pode aparecer". Quando aparecer, e
+# porque o upstream ganhou um caso que o guest nao trata.
+absent	omarchy-guest::bin/omarchy-menu	nenhum comando deles pode passar a chamar o guest por nome: quem depende de quem e so num sentido	HOST-INVENTORY
+
+# `watch` e o filtro do --commits: de 78 commits, quais tocam o que e nosso.
+# Nao vale colocar bin/ e shell/ inteiros aqui - isso devolve quase todos os
+# commits e nao filtra nada. Os bin/<comando> que chamamos sao acrescentados
+# pelo proprio script, a partir do que ele extrai do repo.
+watch	default/hypr/helpers.lua	a tabela `o`	ASSUMPTIONS 2
+watch	default/hypr/autostart.lua	o que a sessao deles sobe por cima do host	ASSUMPTIONS 4
+watch	default/omarchy/omarchy-menu.jsonc	ids que sobrescrevemos	MENU-OVERRIDES
+watch	config/omarchy/	o que o instalador deles deixa em ~/.config/omarchy	MENU-OVERRIDES
+watch	shell/Ui/	a fachada e os tipos base dos nossos plugins	HOST-INVENTORY
+watch	shell/Commons/	Color e Style, que os plugins leem	HOST-INVENTORY
+watch	shell/services/PluginRegistry.qml	como os plugins sao descobertos e validados	HOST-INVENTORY
+watch	shell/plugins/bar/	quem hospeda os widgets de barra	HOST-INVENTORY
+watch	shell/plugins/menu/	quem le a extensao do menu	MENU-OVERRIDES
+watch	shell/shell.qml	o que o shell injeta em cada plugin	HOST-INVENTORY
+
+# Falsos positivos da extracao de comandos: aparecem no nosso codigo, mas nao
+# sao arquivos de bin/ deles.
+ignore	omarchy-theme-browser	nome do arquivo em etc/sudoers.d, nao um comando
+ignore	omarchy-repo	prosa em comentario (o repositorio deles)
+ignore	omarchy-current	prosa: o link current/
+ignore	omarchy-settings	prosa: a tela de settings do shell
+ignore	omarchy-lock-password	prosa: o arquivo PAM do lock

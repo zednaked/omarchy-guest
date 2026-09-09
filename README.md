@@ -20,6 +20,7 @@ second install that found (and fixed) everything machine-specific the first
 one could not see.
 
     omarchy-guest doctor              # read-only inspection, changes nothing
+    omarchy-guest-contract --ref origin/quattro --commits   # what their next update breaks
     omarchy-guest install --dry-run   # show what would be written
     omarchy-guest install             # copy plugins and menu overrides into place
 
@@ -36,6 +37,7 @@ more thing that can behave differently on a machine you are not sitting at.
 ## Layout
 
     bin/            the CLI
+    contract/       the inferred contract with upstream, and the verified ref
     docs/           the maps - read these first
     plugins/        Omarchy shell plugins that make sense on a guest install
     extensions/     menu overrides (what to hide, what to replace)
@@ -75,6 +77,9 @@ tries to fix from the outside, without a fork.
 - [`docs/THEMING.md`](docs/THEMING.md) - which surfaces the Omarchy theme reaches
   by itself, which it does not and why each one is different, and the traps that
   make a theme change look like it half worked.
+- [`docs/UPSTREAM-CONTRACT.md`](docs/UPSTREAM-CONTRACT.md) - everything the guest
+  depends on inside Omarchy, written as assertions that run against a ref
+  before the update lands, and the workflow around them.
 - [`docs/QUADRO-FORMAT.md`](docs/QUADRO-FORMAT.md) - the board document format.
 
 ## What we already know
@@ -114,6 +119,12 @@ Short version:
 - **`zed.quadro`** - a board of Markdown documents, rendered as force-directed
   graphs or prose. A folder of `.md` files, one tab each; drop a file in and it
   becomes a tab. Format in [`docs/QUADRO-FORMAT.md`](docs/QUADRO-FORMAT.md).
+- **`omarchy-guest-contract`** - checks this repo against any Omarchy ref
+  without touching the installed checkout: their commands we call, the menu ids
+  we override, the QML the plugins read off the third-party facade, the lists we
+  copy. The verdict is differential against the ref in `contract/verified`, so a
+  note that rotted is not reported as a regression. See
+  [`docs/UPSTREAM-CONTRACT.md`](docs/UPSTREAM-CONTRACT.md).
 - **`omarchy-guest-graph`** - reads the running machine and emits its ownership
   graph as JSON. Read-only; the board's machine map is generated from it.
 - **`omarchy-guest-theme-apply`** - makes the window border, the terminal and the
