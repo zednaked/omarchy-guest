@@ -145,12 +145,32 @@ fi
 # ---------------------------------------------------------------------------
 # 3. wallpaper
 # ---------------------------------------------------------------------------
-# Omarchy records which image its theme wants; on this machine the host's
+# Omarchy records which background its theme wants; on this machine the host's
 # daemon is what actually paints it. Pointing the host at Omarchy's choice keeps
 # one daemon and makes the wallpaper follow the theme.
+#
+# "Background", nao "imagem": desde "Add native video wallpaper support" (#6792)
+# o current/background deles tambem pode ser video, que o shell deles pinta com
+# um player proprio. O daemon do host pinta imagem. Entregar o .mp4 para ele nao
+# da erro visivel - da tela preta e um wallpaper que parou de seguir o tema.
+# Nesse caso caimos na primeira imagem do tema, que e o que o host consegue
+# pintar, e dizemos por que.
+is_video() { [[ ${1,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]]; }
+
+theme_image() {
+  find "$theme_dir/backgrounds" -maxdepth 1 -type f \
+    \( -name '*.jpg' -o -name '*.jpeg' -o -name '*.png' -o -name '*.webp' -o -name '*.bmp' \) \
+    2>/dev/null | sort | head -1
+}
+
 bg="$(readlink -f "${OMARCHY_STATE:-$HOME/.local/state/omarchy}/current/background" 2>/dev/null)"
+bg_video=""
+if [[ -n $bg ]] && is_video "$bg"; then
+  bg_video="$bg"
+  bg=""
+fi
 if [[ -z $bg || ! -f $bg ]]; then
-  bg="$(find "$theme_dir/backgrounds" -maxdepth 1 -type f \( -name '*.jpg' -o -name '*.png' -o -name '*.webp' \) 2>/dev/null | sort | head -1)"
+  bg="$(theme_image)"
 fi
 
 if [[ -n $bg && -f $bg ]]; then
@@ -162,4 +182,14 @@ if [[ -n $bg && -f $bg ]]; then
   else
     echo "  wallpaper: sem wallpaper.sh do host; deixe o plugin omarchy.background ligado"
   fi
+  if [[ -n $bg_video ]]; then
+    echo "             (tema com video: $(basename "$bg_video"); o host so pinta imagem)"
+  fi
+elif [[ -n $bg_video ]]; then
+  echo "  wallpaper: tema aponta para video ($(basename "$bg_video")) e nao ha imagem em"
+  echo "             $theme_dir/backgrounds - wallpaper mantido como estava"
 fi
+
+# Este script roda como hook de theme-set: sair diferente de zero faz o
+# omarchy-hook deles imprimir "Hook failed" a cada troca de tema.
+exit 0
