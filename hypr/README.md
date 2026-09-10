@@ -9,6 +9,27 @@ on who owns your entry point, and getting that wrong costs a session.
 | `61-hyprland-config.conf` | the one line that makes the inversion real, for `~/.config/environment.d/` |
 | `autostart.lua` | the daemons the Omarchy shell does not cover, and the list of the ones it does |
 | `gaming.lua` | a performance toggle, because the host had one and Omarchy does not |
+| `bindings.lua` | window-manipulation defaults a guest expects: `SUPER + W` floats instead of being a second close key, `SUPER + P` screenshots, and border resize actually switched on |
+
+## `bind` adds, `rebind` replaces
+
+Binding a key Omarchy already uses with `o.bind` does not override it - both
+actions fire on the same gesture, `hyprctl binds` lists the key twice, and
+nothing is logged. Use `o.rebind` for any key that is already taken, and check
+first:
+
+    omarchy menu keybindings --print
+    hyprctl binds -j | jq -r '.[] | select(.modmask==64) | .key' | sort | uniq -d
+
+Two Omarchy defaults are worth knowing about here: `SUPER + W` and `SUPER + Q`
+are bound to the *same* `close window`, and `SUPER + P` is `pseudo window`.
+
+## The setting that looks enabled and is not
+
+`extend_border_grab_area` defaults to 15 while `resize_on_border` defaults to
+**false**. Reading the first one makes border resize look configured; dragging a
+corner does nothing. Raising `border_size` does not fix it - the grab area is
+invisible and 15px wide either way, and a zero-width border is not the problem.
 
 ## The inversion, and the two ways it goes wrong
 
