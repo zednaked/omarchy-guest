@@ -34,9 +34,11 @@ hl.on("hyprland.start", function()
   -- o dono do clipboard deixou para tras. Ninguem mais faz isso.
   hl.exec_cmd(o.launch("wl-clip-persist --clipboard regular"))
 
-  -- Parear dispositivo novo ainda passa por aqui: `omarchy.bluetooth` esta
-  -- desligado nesta maquina e o widget de audio de terceiro so cuida de audio.
-  hl.exec_cmd(o.launch("blueman-applet"))
+  -- blueman NAO entra aqui: ele ja sobe por /etc/xdg/autostart/blueman.desktop,
+  -- que o uwsm executa. Foi assim que o nm-applet voltou depois de a gente
+  -- tirar do start_up do HyDE - o autostart XDG e um terceiro lugar de onde
+  -- daemon nasce, alem do host e do autostart do Omarchy. Conferir com:
+  --   systemd-analyze --user blame | grep autostart
 
   hl.exec_cmd("kdeconnect-indicator")
 end)

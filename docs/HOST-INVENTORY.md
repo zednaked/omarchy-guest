@@ -79,6 +79,33 @@ Turning them off is a line each in the host's config
 bar and the notification daemon) plus `systemctl --user stop` for the running
 copy. Reversible by uncommenting and logging in again.
 
+### The third place daemons come from
+
+The table above has two columns of ownership - the host's session start and
+Omarchy's autostart - and on a machine with **uwsm** that is not the whole
+list. uwsm also runs **XDG autostart** (`/etc/xdg/autostart/*.desktop`), and
+what starts there answers to neither config.
+
+Measured here on 09/09/2026, after the ownership inversion: `nm-applet` was
+running again. It had been removed from the host's session start hours earlier
+and the host's chain was not even loaded any more. It came from
+`/etc/xdg/autostart/nm-applet.desktop`, and so did blueman and the KDE Connect
+daemon:
+
+    systemd-analyze --user blame | grep autostart
+      35ms app-nm\x2dapplet@autostart.service
+      26ms app-blueman@autostart.service
+      10ms app-org.kde.kdeconnect.daemon@autostart.service
+
+The user-level override is a file of the same name in `~/.config/autostart/`
+carrying `Hidden=true`. Nothing else needs touching, and the packaged file
+stays as it is.
+
+Two lessons, both cheap to apply elsewhere: a daemon that survives removal from
+every config you know about is probably starting from a place you have not
+looked at yet; and an autostart line of your own for something XDG autostart
+already starts is a duplicate waiting to be noticed.
+
 **Beware a contaminated reading.** This list is only accurate on a normal boot.
 On the reference machine, `waybar` and `dunst` are suppressed by two lines in the
 host config; after a boot where those lines were missing, both came back and the
