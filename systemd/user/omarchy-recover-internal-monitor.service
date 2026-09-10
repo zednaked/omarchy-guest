@@ -1,0 +1,15 @@
+# COPIA ajustada para um checkout. O arquivo original deles usa
+# ExecStart=/usr/bin/..., que e o caminho do PACOTE; num checkout isso da
+# 203/EXEC em loop. %h expande para o home, entao a copia serve em
+# qualquer maquina onde o checkout esteja em ~/.local/share/omarchy.
+[Unit]
+Description=Recover the internal monitor toggle when no external display is connected
+Before=graphical-session-pre.target
+ConditionPathExists=%h/.local/state/omarchy/toggles/hypr/internal-monitor-disable.lua
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/share/omarchy/bin/omarchy-hw-recover-internal-monitor
+
+[Install]
+WantedBy=graphical-session-pre.target

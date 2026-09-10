@@ -273,9 +273,18 @@ before.
     # the units whose binaries exist in a checkout - the other two need packages
     cp $OMARCHY_PATH/default/systemd/user/omarchy-{crash-watch,recover-internal-monitor}.service \
        ~/.config/systemd/user/
+    # and this line is the point: their ExecStart is the PACKAGED path
+    sed -i 's|ExecStart=/usr/bin/|ExecStart=%h/.local/share/omarchy/bin/|' \
+       ~/.config/systemd/user/omarchy-{crash-watch,recover-internal-monitor}.service
     systemctl --user daemon-reload
     systemctl --user enable --now omarchy-crash-watch omarchy-recover-internal-monitor
     omarchy-done mark first-run-user    # stops the retry loop
+
+Copying the unit verbatim looks like it works and does not: `ExecStart=/usr/bin/omarchy-crash-watch`
+is assumption 9 again, and a checkout has no `/usr/bin` copy. The failure is
+`status=203/EXEC` on a `Restart=`, so it loops quietly instead of erroring once -
+`systemctl --user is-active` says `activating`, never `active`. Copies adjusted
+this way are in this repo under `systemd/user/`.
 
 Two of the six are deliberately left out even though their binaries exist:
 `omarchy-sleep-lock` duplicates the host idle daemon's `before_sleep_cmd`, and
