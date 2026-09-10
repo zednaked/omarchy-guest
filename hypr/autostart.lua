@@ -39,10 +39,21 @@ hl.on("hyprland.start", function()
   hl.exec_cmd(o.launch("blueman-applet"))
 
   hl.exec_cmd("kdeconnect-indicator")
-
-  -- Ajustes desta maquina que nao cabem em nenhum plugin (notificacoes, etc).
-  hl.exec_cmd((os.getenv("HOME") or "") .. "/.local/share/omarchy-lab/autostart.sh")
 end)
+
+-- O `omarchy-lab/autostart.sh` NAO entra aqui, e essa linha custou caro.
+--
+-- No mundo do HyDE ele era o lancador do shell do Omarchy: o autostart deles
+-- nunca rodava, entao alguem tinha que chamar `omarchy-launch-shell`, e era ele
+-- (com PATH e OMARCHY_PATH montados na mao, porque a sessao nao os tinha).
+-- O nome "autostart.sh" faz parecer um saco de ajustes; e um `exec`.
+--
+-- Com o Omarchy na raiz, o `default/hypr/autostart.lua` DELES ja chama
+-- `omarchy-launch-shell`. Manter a linha aqui sobe o segundo - duas barras no
+-- login, que e exatamente o sintoma de 03/09 chegando por outro caminho.
+--
+-- Pego em 09/09 porque o teste aninhado subia dois quickshell e o Thiago viu
+-- duas barras na instancia de teste. Eu tinha atribuido isso ao teste.
 
 -- NAO estao aqui, e cada ausencia foi uma decisao:
 --

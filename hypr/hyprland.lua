@@ -40,41 +40,35 @@ end
 -- em /usr/share/omarchy, que aqui nao existe, e nada carrega.
 dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")
 
--- TESTE ANINHADO, e por que ele nao mora mais neste arquivo.
+-- TESTE ANINHADO
 --
 -- `Hyprland -c este-arquivo` sobe uma instancia dentro da sessao atual e prova
 -- que a cadeia carrega: binds, opcoes, `hyprctl configerrors`. O que ele NAO
 -- prova e o login - ele ignora HYPRLAND_CONFIG e carrega o arquivo que voce
 -- passou, que e justamente o cenario que no boot nao acontece.
 --
--- O problema pratico e que o autostart deles chama `omarchy-launch-shell`, e o
--- teste sobe um SEGUNDO quickshell brigando com o da sessao real pelos arquivos
--- em ~/.local/state/omarchy. Duas tentativas de resolver isso DENTRO do Lua
--- falharam, e ambas foram medidas em 09/09/2026:
---
---   1. `package.loaded["default.hypr.autostart"] = true` - inutil: o bootstrap
---      deles trata os prefixos `default.hypr` e `hypr` como recarregaveis, para
---      o `hyprctl reload` pegar edicao, e isso passa por cima do cache.
---   2. embrulhar `hl.exec_cmd` para filtrar o comando - tambem inutil: o
---      segundo shell subiu igual, pelo mesmo `omarchy-launch-shell`.
---
---   3. um `omarchy-launch-shell` falso na frente do PATH da instancia de teste
---      - tambem inutil, e essa foi a mais instrutiva: subiram DOIS shells. O
---      `hl.exec_cmd` nao herda o PATH que voce passou no lancamento; o comando
---      cai no shell de login (fish aqui), que remonta o PATH pelo proprio
---      conf.d antes de resolver o nome.
---
--- Entao: **o teste aninhado sobe um segundo quickshell, e ponto.** Ele nao
--- estraga a sessao - morre junto com a instancia - mas enquanto vive escreve
--- no mesmo ~/.local/state/omarchy do shell de verdade. Procedimento:
+-- Ele sobe UM quickshell a mais, porque o autostart do Omarchy chama
+-- `omarchy-launch-shell`. Isso e o esperado, e morre junto com a instancia.
 --
 --     Hyprland -c ~/.config/hypr/hyprland.lua        # noutro terminal
 --     hyprctl -i <sig> configerrors / binds / getoption
---     kill <pid da instancia>                        # e conferir com pgrep -c
---                                                    # quickshell que voltou a 1
+--     kill <pid da instancia>; pgrep -c quickshell   # tem que voltar a 1
 --
--- Nada de teste mora neste arquivo: o que roda no login e o que roda no teste
--- e o mesmo codigo, que e a unica forma de o teste significar alguma coisa.
+-- HISTORIA, porque o erro foi de diagnostico e nao de codigo: em 09/09/2026 o
+-- teste subia DOIS shells extras e eu gastei tres tentativas tentando calar o
+-- autostart deles - stub em `package.loaded`, embrulho em `hl.exec_cmd`, um
+-- executavel falso na frente do PATH. Nenhuma "funcionou", porque o segundo
+-- shell nao vinha de la: vinha do `omarchy-lab/autostart.sh` que eu mesmo
+-- tinha deixado no nosso `hypr/autostart.lua`. Aquele arquivo parece um saco
+-- de ajustes e e um `exec omarchy-launch-shell` - o lancador do mundo antigo,
+-- onde o autostart deles nunca rodava. Tirado ele, sobra um shell extra, que e
+-- o certo.
+--
+-- Quem viu foi o Thiago, olhando a tela: "nesse ultimo que voce abriu tinha 2
+-- barras". Eu estava contando processos e atribuindo a diferenca ao teste.
+--
+-- Nada de codigo de teste mora neste arquivo: o que roda no login e o que roda
+-- no teste e o mesmo, que e a unica forma de o teste significar alguma coisa.
 
 -- Defaults do Omarchy: helpers (a mesa `o`), autostart, binds, envs, looknfeel,
 -- qconsole, input, windows, e o override do tema atual.
