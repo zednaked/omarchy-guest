@@ -245,7 +245,46 @@ installer. `doctor` checks for it when a Chromium-family browser is present.
 
 ---
 
-## 10. A managed block's "default" is the host's, not Hyprland's
+## 10. First-run is a one-shot that assumes the package installed it
+
+**Assumption:** their autostart calls `omarchy-provision-first-run`, and every
+step it runs can succeed, because the machine came from their installer.
+
+**As a guest:** the step that enables user systemd units (`bt-agent`,
+`omarchy-sleep-lock`, `omarchy-crash-watch`, ...) fails, because those units
+ship in the **package**, at `/usr/lib/systemd/user/`, and a checkout has none of
+them. First-run marks itself done only when every step passed, so one failure
+turns a one-shot into a thing that runs on **every login**.
+
+That matters more than it sounds, because of what else first-run does on the
+way: it applies a GTK theme, installs post-update hooks, tunes the speakers,
+and schedules a **critical "Update System" notification whose click runs their
+full updater** - `pacman -Syu`, AUR, mise, orphan removal. On a guest whose
+package management belongs to the host, that notification is an invitation to
+undo the arrangement, arriving at every login.
+
+**Note this only appears after ownership inverts** (assumption 1). While the
+host owns the entry point, their autostart never runs and none of this happens
+- which is why it was a surprise on the first boot after inverting, and not
+before.
+
+**Fix:**
+
+    # the units whose binaries exist in a checkout - the other two need packages
+    cp $OMARCHY_PATH/default/systemd/user/omarchy-{crash-watch,recover-internal-monitor}.service \
+       ~/.config/systemd/user/
+    systemctl --user daemon-reload
+    systemctl --user enable --now omarchy-crash-watch omarchy-recover-internal-monitor
+    omarchy-done mark first-run-user    # stops the retry loop
+
+Two of the six are deliberately left out even though their binaries exist:
+`omarchy-sleep-lock` duplicates the host idle daemon's `before_sleep_cmd`, and
+`omarchy-migrate-notify` nags about migrations a guest decides on its own (see
+`contract/migration-policy.tsv`). `doctor` reports the whole thing.
+
+---
+
+## 11. A managed block's "default" is the host's, not Hyprland's
 
 **Assumption:** a config panel that owns a fenced block in
 `~/.config/hypr/looknfeel.lua` writes only the keys you changed. Whatever it

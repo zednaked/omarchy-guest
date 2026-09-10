@@ -143,9 +143,27 @@ doctor() {
 
   local entry="${HYPRLAND_CONFIG:-}"
   if [[ -n $entry ]]; then
-    warn "HYPRLAND_CONFIG=$entry"
-    note "this wins over ~/.config/hypr/. Editing hyprland.lua/conf does NOT"
-    note "change what loads first - that file is only an override layer."
+    # A variavel manda, mas para ONDE ela aponta e a pergunta toda. Apontando
+    # para um arquivo seu, a posse esta invertida e isto e uma boa noticia -
+    # dizer "so uma camada de override" aqui seria mentira, e e exatamente o
+    # que este comando existe para nao fazer.
+    if [[ $entry == "$HOME/.config/"* ]]; then
+      ok "entry point: $entry"
+      note "aponta para um arquivo seu: a posse do compositor esta com voce"
+      if grep -q 'default/hypr/bootstrap.lua' "$entry" 2>/dev/null; then
+        ok "e esse arquivo carrega a cadeia do Omarchy"
+      else
+        warn "mas esse arquivo nao carrega a cadeia do Omarchy"
+        note "confira o dofile de \$OMARCHY_PATH/default/hypr/bootstrap.lua"
+      fi
+    else
+      warn "HYPRLAND_CONFIG=$entry"
+      note "this wins over ~/.config/hypr/. Editing hyprland.lua/conf does NOT"
+      note "change what loads first - that file is only an override layer."
+      note "inverter a posse e apontar esta variavel para um arquivo seu;"
+      note "num host com uwsm, em ~/.config/uwsm/env-<compositor>.d/ - o"
+      note "environment.d nao chega la (ver hypr/README.md)"
+    fi
   else
     if [[ -f $HOME/.config/hypr/hyprland.lua ]]; then
       entry="$HOME/.config/hypr/hyprland.lua"
@@ -281,6 +299,36 @@ doctor() {
       fi
     else
       info "no hypridle.conf here - check what your host binds to lock-session"
+    fi
+  fi
+
+  # -- first-run deles -------------------------------------------------------
+  #
+  # So aparece depois que a posse inverte: com o Omarchy na raiz, o autostart
+  # deles chama `omarchy-provision-first-run`, que instala hooks, aplica tema
+  # GTK, afina o alto-falante e agenda a notificacao "Update System" - a que
+  # abre o updater COMPLETO deles, o que num guest e justamente o que nao se
+  # quer. E ele so marca "feito" se TODO passo passar; um passo que falha faz
+  # tudo repetir no proximo login, notificacao inclusive.
+  section "First-run deles"
+  if [[ -f $HOME/.local/state/omarchy/done/first-run-user ]]; then
+    ok "first-run marcado como feito (nao repete a cada login)"
+  else
+    local units_faltando=()
+    local unit
+    for unit in bt-agent omarchy-recover-internal-monitor omarchy-sleep-lock \
+                omarchy-migrate-notify omarchy-fcitx5 omarchy-crash-watch; do
+      systemctl --user cat "$unit.service" >/dev/null 2>&1 || units_faltando+=("$unit")
+    done
+    if (( ${#units_faltando[@]} > 0 )); then
+      warn "first-run vai repetir a cada login: ${#units_faltando[@]} unit(s) de systemd faltando"
+      note "sao units EMPACOTADOS deles (/usr/lib/systemd/user); num checkout nao existem"
+      note "faltando: ${units_faltando[*]}"
+      note "os que tem binario, copie de \$OMARCHY_PATH/default/systemd/user/ para"
+      note "~/.config/systemd/user/ e habilite; os outros nao tem como funcionar"
+      note "depois: omarchy-done mark first-run-user   (para de repetir)"
+    else
+      info "first-run ainda nao marcado; roda no proximo login"
     fi
   fi
 
