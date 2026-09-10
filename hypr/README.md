@@ -20,13 +20,32 @@ afternoon, spent here on 03/09/2026.
 
 What inverts ownership is which file Hyprland is pointed at:
 
-    # ~/.config/environment.d/61-hyprland-config.conf
     HYPRLAND_CONFIG=/home/you/.config/hypr/hyprland.lua
 
 It works because the host sets its own with `${HYPRLAND_CONFIG:-...}` - only if
-nobody set it first - and `environment.d` is read before the session manager
-starts the compositor. Check your host's env file before assuming this: a
-manager that assigns the variable unconditionally is a harder problem.
+nobody set it first. Check your host's env file before assuming this: a manager
+that assigns the variable unconditionally is a harder problem.
+
+**Where you put that line decides whether it works at all**, and this cost a
+boot to learn. There are two places, and they are not equivalent:
+
+| your session starts the compositor... | put it in |
+|---|---|
+| directly (a `.desktop` exec, a login shell) | `~/.config/environment.d/61-hyprland-config.conf` |
+| through **uwsm** | `~/.config/uwsm/env-hyprland.d/00-guest.sh` (both files ship here) |
+
+uwsm builds the compositor's environment by running the scripts in
+`env-<compositor>.d/` in a shell that does **not** see what `environment.d`
+defined, and then exports the result over the user manager's environment. So
+with only the `environment.d` file, the host's `${HYPRLAND_CONFIG:-...}` still
+evaluates against an empty variable and its own default wins - which is exactly
+what the first boot showed. Inside uwsm's own directory the arithmetic works:
+files are read in order, `00-guest` sorts before `00-hyde`, and their `:-`
+preserves what is already set.
+
+Simulate it before rebooting, instead of finding out at the login screen:
+
+    (unset HYPRLAND_CONFIG; for f in ~/.config/uwsm/env-hyprland.d/*.sh; do . "$f"; done; echo "$HYPRLAND_CONFIG")
 
 The second failure is quieter. `hyprctl reload` re-runs the parse but **does not
 fire `hyprland.start`**, so every autostart from the old session is still
