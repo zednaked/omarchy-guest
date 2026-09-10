@@ -51,19 +51,33 @@ what you reach for and miss.
 
 The host's session start launches these; Omarchy's autostart does not.
 
-| unit | process | covered by Omarchy? |
-|---|---|---|
-| `*-idle` | hypridle | partially - the lock screen moved to `omarchy.lock` (09/09/2026); idle policy stays the host's, and the `omarchy-toggle-idle` shim depends on it |
-| polkit agent | polkitkdeauth.sh | no |
-| `*-wallpaper` | wallpaper.sh | yes - `omarchy.background` owns the wallpaper and the host's service is off in the host config; nothing reads the host's wallpaper cache any more |
-| `*-clipboard-persist` | wl-clip-persist | no - Omarchy keeps history, not persistence |
-| `*-network-manager-applet` | nm-applet | partially - Omarchy has a bar widget, not a tray icon |
-| `*-bluetooth-applet` | blueman-applet | partially - same |
-| `*-battery-notify` | batterynotify.lua | yes - `omarchy.battery` |
-| `*-blue-light-filter` | hyprsunset | yes - `omarchy.nightlight` |
-| `*-text-clipboard`, `*-image-clipboard` | wl-paste watchers | yes - `omarchy.clipboard` |
-| `*-removable-media-applet` | udiskie | yes - in their autostart |
-| `*-config-watcher` | config.lua | host-only, no loss |
+| unit | process | covered by Omarchy? | state here |
+|---|---|---|---|
+| `*-idle` | hypridle | partially - the lock screen moved to `omarchy.lock` (09/09/2026); idle policy stays the host's, and the `omarchy-toggle-idle` shim depends on it | **kept** |
+| polkit agent | polkitkdeauth.sh | yes - `omarchy.polkit` | stopped 09/09 |
+| `*-wallpaper` | wallpaper.sh | yes - `omarchy.background` owns the wallpaper and the host's service is off in the host config; nothing reads the host's wallpaper cache any more | stopped 03/09 |
+| `*-clipboard-persist` | wl-clip-persist | no - Omarchy keeps history, not persistence | **kept** |
+| `*-network-manager-applet` | nm-applet | yes - `omarchy.network` | stopped 09/09 |
+| `*-bluetooth-applet` | blueman-applet | partially - `omarchy.bluetooth` is off here and the third-party audio widget only does audio; pairing still goes through blueman | **kept** |
+| `*-battery-notify` | batterynotify.lua | yes - `omarchy.battery` | stopped 09/09 |
+| `*-blue-light-filter` | hyprsunset | yes - `omarchy.nightlight`, which spawns the binary itself when a temperature is asked for | stopped 09/09 |
+| `*-text-clipboard`, `*-image-clipboard` | wl-paste watchers | yes - `omarchy.clipboard` | stopped 09/09 |
+| `*-removable-media-applet` | udiskie | yes - it is in their autostart too, but here the host's copy is the one running | **kept** |
+| `*-config-watcher` | config.lua | host-only, no loss | stopped 09/09 |
+
+Eleven of these were running **at the same time as the Omarchy plugin that
+covers them**: two battery notifiers, two clipboard histories, two polkit
+agents. Nothing announced it - a second polkit agent is not an error, it just
+means whoever claimed the name first is the one answering. The audit that found
+it is one command:
+
+    omarchy-shell shell listPlugins        # what the shell already covers
+    systemctl --user list-units --state=running | grep hyde-
+
+Turning them off is a line each in the host's config
+(`hyde.config.start.<field> = nil`, the same mechanism that already retired the
+bar and the notification daemon) plus `systemctl --user stop` for the running
+copy. Reversible by uncommenting and logging in again.
 
 **Beware a contaminated reading.** This list is only accurate on a normal boot.
 On the reference machine, `waybar` and `dunst` are suppressed by two lines in the
@@ -126,7 +140,8 @@ Each step is independently reversible. Do not skip to the end.
    what a login will do.
 2. **Port the keybindings you actually miss**, after living on Omarchy's map.
 3. **Decouple the updater** into this project.
-4. **Replace the session daemons** that Omarchy does not cover. The lock screen
+4. **Turn off the daemons Omarchy already covers**, then replace the ones it
+   does not. The lock screen
    is done: `omarchy-apply-lock` writes the PAM file, `omarchy.lock` gets
    enabled, and the host's idle daemon routes to it through one `lock_cmd`
    line - see [`ASSUMPTIONS.md`](ASSUMPTIONS.md) item 6, including why enabling

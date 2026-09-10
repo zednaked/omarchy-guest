@@ -193,14 +193,19 @@
   // Uma linha que parasse o unit de idle por fora deixaria o indicador
   // dizendo uma coisa e o daemon fazendo outra, e dependeria do nome do unit.
 
-  // `omarchy-restart-hyprsunset` mata e relanca o processo POR FORA do unit
-  // do host que o vigia - o daemon continua, mas orfao do systemd. O restart
-  // honesto e do unit. Este e o unico nome de unit do arquivo: adapte ao host.
-  "update.process.hyprsunset": {
-    "icon": "",
-    "label": "Hyprsunset",
-    "action": "systemctl --user restart hyde-Hyprland-blue-light-filter.service"
-  },
+  // "update.process.hyprsunset" NAO e mais sobrescrito aqui, e o motivo vale
+  // registrar porque o mesmo raciocinio vai reaparecer noutro host:
+  //
+  // Enquanto o hyprsunset era um unit do host, `omarchy-restart-hyprsunset`
+  // matava e relancava o processo POR FORA do systemd - o daemon continuava,
+  // mas orfao do unit que o vigiava, e o restart "honesto" era o do unit. Era
+  // o unico nome de unit deste arquivo.
+  //
+  // Em 09/09/2026 o unit do host foi desligado: `omarchy.nightlight` sobe o
+  // hyprsunset sozinho quando alguem pede temperatura. Sem unit vigiando, a
+  // linha original deles voltou a ser a correta - matar e relancar e
+  // exatamente o que se faz com um processo sem supervisor. Um override aqui
+  // agora reiniciaria um unit parado, e o resultado seria dois hyprsunset.
 
   // Grava uma entrada EFI apontando para a UKI DO OMARCHY - takeover da
   // cadeia de boot numa maquina que boota pelo caminho do host.
