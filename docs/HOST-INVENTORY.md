@@ -7,7 +7,10 @@ us a session".
 
 This is the inventory from the reference machine, where the host is
 [HyDE](https://github.com/HyDE-Project/HyDE). The *shape* of the list transfers
-to any host; the specific commands do not.
+to any host; the specific commands do not. **To take this inventory on a
+different host - another config manager, your own Hyprland config, or nothing at
+all - follow [`HOST-SURVEY.md`](HOST-SURVEY.md)**, which asks the same five
+questions without assuming the answers. Read this one as its worked example.
 
 Method: read from the running system (`systemctl --user list-units`,
 `hyprctl binds`, the config chain), not from memory. Re-run it after any change

@@ -72,8 +72,12 @@ tries to fix from the outside, without a fork.
 - [`docs/MENU-OVERRIDES.md`](docs/MENU-OVERRIDES.md) - the menu rows that
   overwrite user config, and the supported way to disable or replace them so the
   change survives `omarchy update`.
+- [`docs/HOST-SURVEY.md`](docs/HOST-SURVEY.md) - how to take this inventory on
+  your own machine, whatever your host is. Five questions, the commands that
+  answer each from the running system, and the traps that make a reading wrong.
 - [`docs/HOST-INVENTORY.md`](docs/HOST-INVENTORY.md) - what still comes from the
   host, what is load-bearing, and the order that makes removing it possible.
+  The reference machine's answers, and the worked example for the survey.
 - [`docs/THEMING.md`](docs/THEMING.md) - which surfaces the Omarchy theme reaches
   by itself, which it does not and why each one is different, and the traps that
   make a theme change look like it half worked.
