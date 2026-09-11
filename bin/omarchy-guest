@@ -354,20 +354,55 @@ doctor() {
   # caminho empacotado (/usr/bin), porque a regra de sudoers casa esse caminho
   # exato. Num checkout ela nao existe, e toda troca de tema reclama.
   section "Browser theme"
+
+  # Browser que nao esta no PATH ainda e um browser.
+  #
+  # Procurar so por nome no PATH dava "nenhum browser da familia Chromium" numa
+  # maquina cujo navegador PADRAO e um Chrome extraido em ~/.local/opt - ele
+  # existe, pinta, e e o que a pessoa usa o dia inteiro. Entao depois do PATH
+  # vem o `.desktop` que o xdg-settings aponta, que e onde mora a verdade sobre
+  # qual browser a maquina realmente abre.
   local browser_found=""
   for b in chromium google-chrome-stable google-chrome microsoft-edge-stable brave; do
     have "$b" && { browser_found="$b"; break; }
   done
-  if [[ -n $browser_found ]]; then
-    if [[ -x /usr/bin/omarchy-theme-set-browser-policy && -f /etc/sudoers.d/omarchy-theme-browser ]]; then
-      ok "escrita privilegiada instalada ($browser_found sera pintado)"
-    else
-      warn "$browser_found presente, mas a metade root do tema de browser falta"
-      note "num checkout, /usr/bin/omarchy-theme-set-browser-policy nao existe e a"
-      note "troca de tema reclama. fix: sudo omarchy-guest-apply-browser-policy"
+  if [[ -z $browser_found ]]; then
+    local dsk exe
+    dsk="$(env -u BROWSER xdg-settings get default-web-browser 2>/dev/null)"
+    if [[ -n $dsk ]]; then
+      local d
+      for d in "$HOME/.local/share/applications" /usr/share/applications \
+               /var/lib/flatpak/exports/share/applications; do
+        [[ -f $d/$dsk ]] || continue
+        exe="$(sed -n 's/^Exec=//p' "$d/$dsk" | head -1 | awk '{print $1}')"
+        break
+      done
+      if [[ -n ${exe:-} && -x $exe && $exe =~ (chrome|chromium|brave|edge) ]]; then
+        browser_found="$(basename "$exe") (padrao, fora do PATH)"
+      fi
     fi
-  else
+  fi
+
+  if [[ -z $browser_found ]]; then
     info "nenhum browser da familia Chromium - nada a pintar"
+  elif [[ ! -x /usr/bin/omarchy-theme-set-browser-policy ]]; then
+    warn "$browser_found presente, mas a metade root do tema de browser falta"
+    note "num checkout, /usr/bin/omarchy-theme-set-browser-policy nao existe e a"
+    note "troca de tema reclama. fix: sudo omarchy-guest-apply-browser-policy"
+  else
+    # `/etc/sudoers.d` e 0750 root:root: usuario comum nao consegue nem STATAR o
+    # arquivo, entao `[[ -f ... ]]` dava falso por PERMISSAO e nao por ausencia -
+    # o doctor mandava reinstalar uma regra que ja estava la.
+    #
+    # O que da para verificar sem root e o EFEITO: `sudo -n -l <cmd> <args>` diz
+    # se a concessao NOPASSWD vale, sem pedir senha e sem executar nada.
+    if sudo -n -l /usr/bin/omarchy-theme-set-browser-policy aabbcc >/dev/null 2>&1; then
+      ok "escrita privilegiada instalada e a regra NOPASSWD vale ($browser_found)"
+    else
+      warn "o binario esta em /usr/bin, mas a regra NOPASSWD nao respondeu"
+      note "pode ser a regra ausente, ou so credencial de sudo expirada -"
+      note "confira com: sudo -l /usr/bin/omarchy-theme-set-browser-policy aabbcc"
+    fi
   fi
 
   # -- what their autostart would launch -------------------------------------
