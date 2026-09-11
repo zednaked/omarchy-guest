@@ -119,6 +119,12 @@ Short version:
 - **`zed.quadro`** - a board of Markdown documents, rendered as force-directed
   graphs or prose. A folder of `.md` files, one tab each; drop a file in and it
   becomes a tab. Format in [`docs/QUADRO-FORMAT.md`](docs/QUADRO-FORMAT.md).
+- **`zed.ganja`** - a cannabis plant that grows in the bar. A QML port of
+  [Ganja-TUI](https://github.com/zed/Ganja-TUI): same 35 strains, same
+  procedural 70x28 ASCII art, same save format, no Rust binary and no resident
+  process. Closed, it costs one 60-second timer. A full grow takes about a week
+  of real use; holding `f` in the overlay runs the TUI's original 130000x on a
+  throwaway copy. See [`plugins/zed.ganja/README.md`](plugins/zed.ganja/README.md).
 - **`omarchy-guest-contract`** - checks this repo against any Omarchy ref
   without touching the installed checkout: their commands we call, the menu ids
   we override, the QML the plugins read off the third-party facade, the lists we
