@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "zed.hyde-updates",
+  "id": "zed.updates",
   "name": "Atualizacoes do sistema",
   "version": "1.0.0",
   "author": "Thiago",
   "license": "MIT",
-  "description": "Contador de pacotes a atualizar, por origem, com o motor de inventario do HyDE",
+  "description": "Contador de pacotes a atualizar, por origem. O motor de inventario e vendorizado (GPL-3, ver NOTICE.md) e nao precisa do projeto de origem instalado.",
   "kinds": [
     "bar-widget"
   ],

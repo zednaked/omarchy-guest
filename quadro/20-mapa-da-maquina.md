@@ -36,7 +36,7 @@ group ours  #9E92FF  nosso
 [guest] io.github.randazraik.xray :: plugin :: Third-party shell plugin.
 [guest] im0001gt.hw-tooltip :: plugin :: Third-party shell plugin.
 [guest] jankeesvw.downloads :: plugin :: Third-party shell plugin.
-[ours] zed.hyde-updates :: plugin :: Ours - installed by omarchy-guest.
+[ours] zed.updates :: plugin :: Ours - installed by omarchy-guest.
 [guest] ssupt.bluetooth-audio :: plugin :: Third-party shell plugin.
 [guest] ssupt.audio-control :: plugin :: Third-party shell plugin.
 [ours] update engine :: code :: Vendored into omarchy-guest, so the package count works without the host installed.
@@ -61,7 +61,7 @@ quickshell -> b.okomart
 quickshell -> io.github.randazraik.xray
 quickshell -> im0001gt.hw-tooltip
 quickshell -> jankeesvw.downloads
-quickshell -> zed.hyde-updates
+quickshell -> zed.updates
 quickshell -> ssupt.bluetooth-audio
 quickshell -> ssupt.audio-control
 menu -> menu overrides

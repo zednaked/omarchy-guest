@@ -111,7 +111,7 @@ Short version:
 
 ## What ships here
 
-- **`zed.hyde-updates`** - a bar widget with a package count per source. Omarchy's
+- **`zed.updates`** - a bar widget with a package count per source. Omarchy's
   own updater reports no inventory, so this borrows the host's engine. See
   [`docs/HOST-INVENTORY.md`](docs/HOST-INVENTORY.md) for why decoupling it is
   next.

@@ -9,8 +9,8 @@ import qs.Ui
 Panel {
   id: root
 
-  moduleName: "zed.hyde-updates"
-  ipcTarget: "zed.hyde-updates"
+  moduleName: "zed.updates"
+  ipcTarget: "zed.updates"
 
   // `barForeground`, e nao `foreground`: sao cores diferentes, e quem os botoes
   // da barra usam (Ui/WidgetButton.qml:11) e a primeira. Peguei a segunda na

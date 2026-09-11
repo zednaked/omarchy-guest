@@ -38,7 +38,7 @@
   // vendor/hyde-updater (originalmente do HyDE, GPL-3),
   // com backend por gerenciador, contagem por origem, e inventario publicado em
   // $XDG_RUNTIME_DIR/omarchy-guest/update_info.json - o mesmo arquivo que
-  // alimenta o widget `zed.hyde-updates` na barra.
+  // alimenta o widget `zed.updates` na barra.
   //
   // A troca reusa o id `update.omarchy` em vez de criar um id novo de proposito:
   // a ordem das linhas vem da ordem de definicao, entao id novo cairia no fim.
