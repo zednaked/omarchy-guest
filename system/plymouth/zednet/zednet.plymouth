@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=zednet
+Description=ASCII art splash (figlet slant) - zednet
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/zednet
+ScriptFile=/usr/share/plymouth/themes/zednet/zednet.script

@@ -1,0 +1,80 @@
+# zednet - splash de boot em ASCII art (figlet slant)
+# fundo: Catppuccin Mocha crust (#11111b); destaque: blue (#89b4fa)
+# A animacao e indeterminada de proposito: o boot dura ~2s e barra de
+# progresso real fica espasmodica nessa escala.
+#
+# SOBRE CENTRALIZACAO EM DUAS TELAS (31/08/2026)
+#
+# Nao da para centrar por tela nesta versao do Plymouth. O modulo de script
+# (/usr/lib/plymouth/script.so) expoe do objeto Window apenas:
+#
+#     Window.GetWidth()   Window.GetHeight()
+#     Window.SetBackgroundTopColor()   Window.SetBackgroundBottomColor()
+#
+# Sem indice e sem GetX/GetY. Os sprites sao desenhados nas MESMAS coordenadas
+# em todas as saidas, e GetWidth() devolve a largura de uma so. Com painel e
+# monitor externo de larguras diferentes, o splash so pode ficar centrado em um
+# dos dois - no que o Plymouth reportar aqui.
+#
+# Passar indice (`Window.GetWidth(0)`) NAO da erro: o argumento e ignorado e o
+# retorno e sempre o mesmo. Um laco `while (Window.GetWidth(i))` esperando o
+# fim das telas nunca termina.
+
+Window.SetBackgroundTopColor(0.0941, 0.102, 0.1216);
+Window.SetBackgroundBottomColor(0.0941, 0.102, 0.1216);
+
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+
+# --- logo ---
+logo.image = Image("logo.png");
+logo.sprite = Sprite(logo.image);
+logo.sprite.SetPosition(
+    screen_w / 2 - logo.image.GetWidth() / 2,
+    screen_h / 2 - logo.image.GetHeight() / 2 - 30,
+    1);
+
+# --- trilha + segmento que varre ---
+track.image = Image("bar-bg.png");
+track.width = track.image.GetWidth();
+track.x = screen_w / 2 - track.width / 2;
+track.y = screen_h / 2 + logo.image.GetHeight() / 2 + 30;
+track.sprite = Sprite(track.image);
+track.sprite.SetPosition(track.x, track.y, 1);
+
+chunk.image = Image("bar-chunk.png");
+chunk.width = chunk.image.GetWidth();
+chunk.sprite = Sprite(chunk.image);
+chunk.travel = track.width - chunk.width;
+
+# ida e volta: 44 quadros por trecho
+tick = 0;
+fun on_refresh() {
+    tick = tick + 1;
+    phase = tick % 88;
+    if (phase < 44) {
+        pos = phase / 44;
+    } else {
+        pos = (88 - phase) / 44;
+    }
+    chunk.sprite.SetPosition(track.x + chunk.travel * pos, track.y, 2);
+}
+Plymouth.SetRefreshFunction(on_refresh);
+
+# --- mensagens (erro de fsck, etc) ---
+message.sprite = Sprite();
+fun on_message(text) {
+    message.sprite.SetImage(Image.Text(text, 0.2941, 0.3176, 0.3569));
+    message.sprite.SetPosition(
+        screen_w / 2 - message.sprite.GetImage().GetWidth() / 2,
+        track.y + 40,
+        3);
+}
+Plymouth.SetMessageFunction(on_message);
+
+# --- saida: some a barra, mantem o logo ate o handoff ---
+fun on_quit() {
+    track.sprite.SetOpacity(0);
+    chunk.sprite.SetOpacity(0);
+}
+Plymouth.SetQuitFunction(on_quit);

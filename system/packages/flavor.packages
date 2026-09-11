@@ -1,0 +1,18 @@
+# Pacotes deste flavor, alem do `install/omarchy-base.packages` do Omarchy.
+#
+# A base deles nao e copiada aqui de proposito: ela e do upstream e muda com
+# ele. O instalador LE a lista de la e instala o que faltar. Esta lista e so o
+# delta - o que este flavor usa e o Omarchy nao instala por padrao.
+#
+# Cada linha tem o porque. Pacote sem motivo escrito nao entra: foi assim que
+# se descobriu, uma vez por defeito, que botao de barra chamando binario
+# ausente falha EM SILENCIO.
+
+gpu-screen-recorder     # gravacao de tela (ALT+PRINT e o botao da barra)
+imv                     # visualizador de imagem - a escolha do Omarchy
+mpv                     # player de video - idem
+mpv-mpris               # controle do mpv pela barra
+ffmpegthumbs            # miniatura de video no Dolphin
+quickshell              # o shell inteiro roda nele
+plymouth                # splash do boot (tema zednet)
+sddm                    # tela de login
