@@ -30,6 +30,34 @@ PROBS=0
 have() { command -v "$1" >/dev/null 2>&1; }
 running() { pgrep -x "$1" >/dev/null 2>&1; }
 
+# Quem iniciou um processo, lido do cgroup.
+#
+# "Esta rodando" e um fato; "por que esta rodando" e a parte que decide se e
+# colisao ou dono legitimo - e o proprio HOST-SURVEY.md abre com isso. O systemd
+# grava a origem no cgroup, e as tres formas sao distinguiveis de longe:
+#
+#   app-Hyprland-<nome>-<hash>.scope   -> exec do autostart do compositor (nos)
+#   app-<nome>@autostart.service       -> XDG autostart (/etc/xdg/autostart)
+#   dbus-...@<n>.service               -> ativacao por D-Bus
+#
+# Sem isto o doctor acusava "already running here" para TUDO que o autostart do
+# Omarchy inicia - ou seja, para tudo que esta certo - assim que a posse
+# invertia. Ruido que ensina a ignorar o doctor, que e o pior defeito possivel
+# num diagnostico.
+quem_iniciou() {
+  local pid cg
+  pid="$(pgrep -x "$1" 2>/dev/null | head -1)"
+  [[ -z $pid ]] && pid="$(pgrep -f "(^|/)$1( |$)" 2>/dev/null | head -1)"
+  [[ -z $pid ]] && { echo ""; return 1; }
+  cg="$(cat "/proc/$pid/cgroup" 2>/dev/null | tail -1)"
+  case "$cg" in
+    *app-Hyprland-*.scope)  echo "compositor" ;;
+    *@autostart.service*)   echo "xdg" ;;
+    *dbus-*@*.service*)     echo "dbus" ;;
+    *)                      echo "outro" ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # doctor
 # ---------------------------------------------------------------------------
@@ -417,10 +445,20 @@ doctor() {
           systemctl|dbus-update-activation-environment|sleep|env|true)
             info "$cmd  (session plumbing)"; continue ;;
         esac
-        if running "$first"; then
-          warn "$cmd  (already running here)"
-        else
+        if ! running "$first"; then
           info "$cmd"
+        else
+          case "$(quem_iniciou "$first")" in
+            compositor)
+              ok "$cmd  (iniciado pelo autostart do compositor - dono certo)" ;;
+            xdg)
+              warn "$cmd  (ja rodando pelo XDG autostart - duplicata)"
+              note "override: ~/.config/autostart/$first.desktop com Hidden=true" ;;
+            dbus)
+              warn "$cmd  (ja rodando por ativacao D-Bus)" ;;
+            *)
+              warn "$cmd  (ja rodando, origem desconhecida)" ;;
+          esac
         fi
       done
     note "as a guest you usually want only the shell from this list; the rest is"
