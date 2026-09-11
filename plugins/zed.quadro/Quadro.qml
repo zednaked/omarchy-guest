@@ -294,9 +294,21 @@ Item {
       n.vx *= 0.86; n.vy *= 0.86
       n.x += n.vx; n.y += n.vy
       energy += n.vx * n.vx + n.vy * n.vy
+      // A parede tira a velocidade, e nao so a posicao.
+      //
+      // Prender so `n.x`/`n.y` deixava o no encostado com velocidade VIVA: a
+      // repulsao dos vizinhos continua empurrando para fora todo quadro, e com
+      // o amortecimento de 0,86 ela nao morre, converge para `forca / 0,14`. O
+      // no nao andava e mesmo assim somava `vx*vx` na energia, para sempre.
+      // Com no suficiente na borda a energia nunca descia do limiar la embaixo,
+      // `settled` nunca virava true e o Timer de 16 ms seguia redesenhando um
+      // grafo parado - exatamente o que o portao de parada existe para evitar.
+      // Media antes: 36% de um nucleo com o quadro aberto.
       var m = n.r + 18
-      n.x = Math.max(m, Math.min(w - m, n.x))
-      n.y = Math.max(m, Math.min(h - m, n.y))
+      if (n.x < m) { n.x = m; if (n.vx < 0) n.vx = 0 }
+      else if (n.x > w - m) { n.x = w - m; if (n.vx > 0) n.vx = 0 }
+      if (n.y < m) { n.y = m; if (n.vy < 0) n.vy = 0 }
+      else if (n.y > h - m) { n.y = h - m; if (n.vy > 0) n.vy = 0 }
     }
 
     // Settle after the system has been quiet for a while, not on the first calm
