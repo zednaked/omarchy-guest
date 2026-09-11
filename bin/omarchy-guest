@@ -376,6 +376,53 @@ doctor() {
   fi
 
   # -- verdict ---------------------------------------------------------------
+  # --- caminho de atualizacao ---------------------------------------------
+  #
+  # A checagem mais importante deste doctor, e a que nasceu por ultimo.
+  #
+  # O menu do Omarchy tem uma linha `update.omarchy` que chama `omarchy-update`:
+  # ela atualiza o sistema do jeito DELES, com migrations, e numa maquina que e
+  # um flavor isso passa por cima de decisoes que o flavor tomou. A extensao de
+  # menu troca essa linha pelo nosso atualizador e desliga os quatro
+  # `update.channel.*`, porque trocar de canal termina em `omarchy-update -y`
+  # com migrations inclusas - ou seja, o caminho perigoso por um atalho lateral.
+  #
+  # Isso sempre esteve documentado (docs/MENU-OVERRIDES.md) e sempre foi COPIADO
+  # pelo install. O que faltava era alguem CONFERIR que a copia aconteceu: uma
+  # instalacao pela metade deixava o caminho normal vivo, em silencio, e o
+  # sintoma so aparece no dia em que alguem clica em "Update" no menu.
+  section "Caminho de atualizacao"
+  local ext="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
+  if [[ ! -f $ext ]]; then
+    bad "a extensao de menu nao esta instalada"
+    note "o menu do Omarchy esta com o caminho de update ORIGINAL vivo"
+    note "conserto: omarchy-guest install"
+  else
+    ok "extensao de menu instalada"
+    if grep -q '"update\.omarchy"' "$ext"; then
+      ok "update.omarchy trocado pelo atualizador do flavor"
+    else
+      bad "update.omarchy NAO esta sobrescrito - o menu chama omarchy-update"
+    fi
+    local canais_abertos=0 c
+    for c in stable rc edge dev; do
+      grep -q "\"update\.channel\.$c\"" "$ext" || canais_abertos=1
+    done
+    if ((canais_abertos)); then
+      bad "algum update.channel.* nao esta desligado"
+      note "trocar de canal termina em \`omarchy-update -y\`, com migrations"
+    else
+      ok "os quatro update.channel.* desligados"
+    fi
+  fi
+  local upd="$HOME/.local/share/omarchy-guest/updater/system.update.py"
+  if [[ -f ${OMARCHY_GUEST_UPDATER:-} || -f $upd ]]; then
+    ok "atualizador do flavor no lugar"
+  else
+    bad "o atualizador do flavor nao esta instalado"
+    note "a linha de menu trocada cairia no do host, ou em nada"
+  fi
+
   section "Verdict"
   if (( PROBS > 0 )); then
     printf '  %s%d blocker(s)%s and %d warning(s).\n' "$RED" "$PROBS" "$RESET" "$WARNS"
@@ -539,6 +586,152 @@ install_all() {
 }
 
 # ---------------------------------------------------------------------------
+# bootstrap - de um Arch com Hyprland ate este flavor
+# ---------------------------------------------------------------------------
+#
+# O contrato de entrada: a pessoa instala o Arch, instala o Hyprland, clona este
+# repo e roda isto. Nada aqui precisa de sessao grafica - roda inteiro de um
+# TTY, que e o unico lugar que existe antes do primeiro login.
+#
+# O que precisa de sessao viva e conferencia, nao instalacao, e por isso mora no
+# `doctor`: `hyprctl` so responde com o compositor de pe, e a config que este
+# comando escreve e justamente a que o Hyprland vai ler NO PROXIMO login.
+#
+# Idempotente de proposito. Rodar de novo depois de um `omarchy update`, ou numa
+# maquina meio pronta, tem de ser seguro - e assim ele tambem serve de conserto,
+# nao so de instalacao.
+
+OMARCHY_REPO="https://github.com/basecamp/omarchy.git"
+OMARCHY_REF="quattro"
+OMARCHY_DIR="$HOME/.local/share/omarchy"
+
+# `yay` cobre repo e AUR num comando so, e e o que o proprio tooling deles usa
+# (bin/omarchy-pkg-aur-install). Sem helper de AUR, o pacman resolve a maior
+# parte e o que faltar e listado para a pessoa decidir - melhor do que instalar
+# metade e chamar de pronto.
+aur_helper() {
+  local h
+  for h in yay paru pikaur; do command -v "$h" >/dev/null && { echo "$h"; return 0; }; done
+  return 1
+}
+
+bootstrap_all() {
+  local dry=0
+  [[ ${1:-} == "--dry-run" ]] && dry=1
+  local run=(); ((dry)) && run=(echo "       #")
+
+  printf '%somarchy-guest bootstrap%s%s\n' "$BOLD" "$RESET" \
+    "$( ((dry)) && printf '  (dry run)' )"
+
+  # --- 1. preflight -------------------------------------------------------
+  section "Preflight"
+  local parada=0
+  if [[ ! -f /etc/arch-release ]]; then
+    warn "isto nao parece Arch - o instalador so sabe pacman"; parada=1
+  else ok "Arch"; fi
+  if [[ $EUID -eq 0 ]]; then
+    warn "nao rode como root: a config vai para o \$HOME de quem roda"; parada=1
+  else ok "usuario $USER"; fi
+  command -v sudo >/dev/null && ok "sudo" || { warn "sem sudo"; parada=1; }
+  if ping -c1 -W2 archlinux.org >/dev/null 2>&1; then ok "rede"
+  else warn "sem rede - nada abaixo funciona"; parada=1; fi
+  ((parada)) && { echo; warn "preflight falhou, nada foi feito"; return 1; }
+
+  # --- 2. helper de AUR ---------------------------------------------------
+  section "Helper de AUR"
+  local PKG; PKG="$(aur_helper)" || true
+  if [[ -n ${PKG:-} ]]; then
+    ok "$PKG"
+  else
+    warn "nenhum helper de AUR (yay/paru/pikaur)"
+    note "parte da lista base do Omarchy vem do AUR e sera apenas listada"
+    note "para instalar o yay: sudo pacman -S --needed git base-devel &&"
+    note "  git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si"
+    PKG=""
+  fi
+
+  # --- 3. Hyprland --------------------------------------------------------
+  section "Hyprland"
+  if command -v Hyprland >/dev/null || command -v hyprctl >/dev/null; then
+    ok "ja instalado"
+  else
+    info "faltando - instalando"
+    "${run[@]}" sudo pacman -S --needed --noconfirm hyprland || {
+      warn "falhou ao instalar o hyprland"; return 1; }
+  fi
+
+  # --- 4. Omarchy ---------------------------------------------------------
+  section "Omarchy"
+  if [[ -d $OMARCHY_DIR/.git ]]; then
+    local atual; atual="$(git -C "$OMARCHY_DIR" rev-parse --short HEAD 2>/dev/null)"
+    ok "ja clonado em $OMARCHY_DIR ($atual)"
+    note "este comando NAO atualiza o clone: quem decide quando o upstream entra"
+    note "e voce, depois de rodar \`omarchy-guest-contract\` contra o ref novo"
+  else
+    info "clonando $OMARCHY_REPO ($OMARCHY_REF)"
+    "${run[@]}" git clone --branch "$OMARCHY_REF" "$OMARCHY_REPO" "$OMARCHY_DIR" || {
+      warn "falhou ao clonar"; return 1; }
+    ok "$OMARCHY_DIR"
+  fi
+
+  # --- 5. pacotes ---------------------------------------------------------
+  section "Pacotes"
+  # A lista base NAO e copiada para este repo: ela e do upstream e muda com ele.
+  # Ler do clone e o que mantem os dois em dia sem ninguem sincronizar nada.
+  local base="$OMARCHY_DIR/install/omarchy-base.packages"
+  local delta="$REPO/system/packages/flavor.packages"
+  local querem=() falta=()
+  [[ -f $base  ]] && mapfile -t -O "${#querem[@]}" querem < <(grep -vE '^\s*(#|$)' "$base" | awk '{print $1}')
+  [[ -f $delta ]] && mapfile -t -O "${#querem[@]}" querem < <(grep -vE '^\s*(#|$)' "$delta" | awk '{print $1}')
+  if ((${#querem[@]} == 0)); then
+    warn "nao achei lista de pacotes - pulando"
+  else
+    local p
+    for p in "${querem[@]}"; do
+      pacman -Qq "$p" >/dev/null 2>&1 || falta+=("$p")
+    done
+    info "${#querem[@]} pacotes na lista, ${#falta[@]} faltando"
+    if ((${#falta[@]} == 0)); then
+      ok "nada a instalar"
+    elif [[ -n $PKG ]]; then
+      # Um comando so: resolver dependencia em lote e muito mais rapido, e uma
+      # falha no meio deixa um estado mais facil de entender do que 87 falhas
+      # independentes.
+      "${run[@]}" "$PKG" -S --needed --noconfirm "${falta[@]}" || {
+        warn "algum pacote falhou - rode de novo, e idempotente"; }
+    else
+      warn "sem helper de AUR, instalando so o que estiver nos repos:"
+      local repo_pk=() aur_pk=()
+      for p in "${falta[@]}"; do
+        if pacman -Si "$p" >/dev/null 2>&1; then repo_pk+=("$p"); else aur_pk+=("$p"); fi
+      done
+      ((${#repo_pk[@]})) && "${run[@]}" sudo pacman -S --needed --noconfirm "${repo_pk[@]}"
+      if ((${#aur_pk[@]})); then
+        warn "${#aur_pk[@]} pacotes so existem no AUR e NAO foram instalados:"
+        note "  ${aur_pk[*]}"
+      fi
+    fi
+  fi
+
+  # --- 6. o resto ---------------------------------------------------------
+  section "Proximos passos"
+  if ((dry)); then
+    info "nada foi escrito"
+    info "depois: omarchy-guest install   (plugins, hooks, updater - sem sudo)"
+    info "depois: omarchy-guest system    (splash, sddm, /etc/issue - com sudo)"
+  else
+    info "agora rode, nesta ordem:"
+    info "  omarchy-guest install    # a metade do \$HOME, sem sudo"
+    info "  omarchy-guest system     # splash, login e TTY, com sudo"
+    echo
+    info "e entao DESLOGUE e entre de novo - reload nao re-dispara session start,"
+    note "entao so um login de verdade mostra o que este flavor faz."
+    info "ja dentro da sessao nova: omarchy-guest doctor"
+  fi
+  echo
+}
+
+# ---------------------------------------------------------------------------
 # system - a metade que mora fora do $HOME
 # ---------------------------------------------------------------------------
 #
@@ -680,6 +873,9 @@ omarchy-guest - run the Omarchy shell as a guest, not as the owner
 
 usage:
   omarchy-guest doctor              inspect this machine, change nothing
+  omarchy-guest bootstrap [--dry-run]
+                                    from a plain Arch + Hyprland to this flavor:
+                                    packages, the Omarchy clone, and what is missing
   omarchy-guest install [--dry-run] copy plugins and menu overrides into place
   omarchy-guest system  [--dry-run] install the half that lives outside $HOME
                                     (plymouth splash, sddm theme, /etc/issue)
@@ -693,6 +889,7 @@ EOF
 
 case "${1:-doctor}" in
   doctor)  doctor ;;
+  bootstrap) shift; bootstrap_all "${1:-}" ;;
   install) shift; install_all "${1:-}" ;;
   system)  shift; system_all "${1:-}" ;;
   version) echo "omarchy-guest $VERSION" ;;

@@ -150,3 +150,26 @@ counts packages per source and Omarchy's does not report an inventory:
 Note the second row. Omarchy's own updater is the only way to update their
 checkout and run their migrations - replacing it outright leaves you unable to
 update Omarchy at all. Demote it, do not delete it.
+
+## Verifying, not just documenting
+
+Every override in this file is applied by `omarchy-guest install`, which copies
+the extension into place. That is a copy, and a copy can not have happened -
+someone runs the shell before running `install`, or a half-finished setup on a
+second machine leaves the file behind.
+
+The failure is silent and asymmetric: the menu keeps working, looks identical,
+and the only difference is that "Update" runs `omarchy-update` with migrations
+instead of the guest's updater. Nobody finds out until the day they click it.
+
+So `omarchy-guest doctor` checks the update path specifically, and reports a
+problem - not a warning - when any of these is not true:
+
+- the extension is installed at `~/.config/omarchy/extensions/omarchy-menu.jsonc`
+- `update.omarchy` is overridden
+- all four `update.channel.*` rows are disabled, because switching channel ends
+  in `omarchy-update -y` and is the same danger through a side door
+- the flavour's updater is actually present, so the replaced row has something
+  to call
+
+Run it after any install, and on any machine you did not set up today.
