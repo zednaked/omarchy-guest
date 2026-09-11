@@ -255,10 +255,27 @@ doctor() {
     running "$proc" && info "host $what: $proc"
   done
 
-  if running hyprpolkitagent || running polkit-kde-authentication-agent-1 || running polkit-gnome-authentication-agent-1; then
-    ok "a polkit agent is running"
+  # O agente do Omarchy NAO e um processo.
+  #
+  # `omarchy.polkit` e um agente escrito em QML (plugins/polkit/PolkitAgent.qml)
+  # que vive dentro do quickshell e se registra no D-Bus de la. Procurar por
+  # `hyprpolkitagent` / `polkit-kde` / `polkit-gnome` com pgrep - que era o que
+  # esta checagem fazia - da falso negativo numa maquina onde o agente funciona,
+  # e empurra quem le para instalar um segundo agente. Dois agentes registrados
+  # e a colisao classica: quem pegou o nome primeiro responde, o outro fica.
+  local agente=""
+  if running hyprpolkitagent; then agente="hyprpolkitagent"
+  elif running polkit-kde-authentication-agent-1; then agente="polkit-kde"
+  elif running polkit-gnome-authentication-agent-1; then agente="polkit-gnome"
+  elif running quickshell && omarchy-shell shell listPlugins 2>/dev/null \
+       | grep -q '"id":"omarchy.polkit","name":"[^"]*","kinds":\["service"\],"enabled":true'; then
+    agente="omarchy.polkit (no proprio shell, sem processo separado)"
+  fi
+  if [[ -n $agente ]]; then
+    ok "agente polkit: $agente"
   else
-    warn "no polkit agent detected - GUI password prompts will fail silently"
+    warn "nenhum agente polkit - senha em janela grafica falha em silencio"
+    note "o do Omarchy e o plugin omarchy.polkit; confira se esta enabled"
   fi
 
   # -- lock screen -----------------------------------------------------------
