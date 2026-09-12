@@ -123,12 +123,21 @@ Short version:
 - **`zed.quadro`** - a board of Markdown documents, rendered as force-directed
   graphs or prose. A folder of `.md` files, one tab each; drop a file in and it
   becomes a tab. Format in [`docs/QUADRO-FORMAT.md`](docs/QUADRO-FORMAT.md).
-- **`zed.ganja`** - a cannabis plant that grows in the bar. A QML port of
-  [Ganja-TUI](https://github.com/zed/Ganja-TUI): same 35 strains, same
+- **`zed.ganja`** - **moved out of this repo** on 2026-09-12, to
+  [github.com/zednaked/omarchy-ganja](https://github.com/zednaked/omarchy-ganja),
+  because it is being submitted to the Omarchy plugin marketplace and that needs
+  a repo of its own with the manifest at the root. Install it with
+  `omarchy plugin add https://github.com/zednaked/omarchy-ganja --enable`, and
+  update it with `omarchy plugin update zed.ganja`.
+
+  Keeping a copy here too was the obvious thing and the wrong one: two copies of
+  the same QML diverge, and the one that gets edited is never the one that gets
+  installed.
+
+  (What it is: a cannabis plant that grows in the bar, a QML port of
+  [Ganja-TUI](https://github.com/zednaked/Ganja-TUI) - same 35 strains, same
   procedural 70x28 ASCII art, same save format, no Rust binary and no resident
-  process. Closed, it costs one 60-second timer. A full grow takes about a week
-  of real use; holding `f` in the overlay runs the TUI's original 130000x on a
-  throwaway copy. See [`plugins/zed.ganja/README.md`](plugins/zed.ganja/README.md).
+  process. Closed it costs one 60-second timer; stopped, nothing at all.)
 - **`omarchy-guest-contract`** - checks this repo against any Omarchy ref
   without touching the installed checkout: their commands we call, the menu ids
   we override, the QML the plugins read off the third-party facade, the lists we
