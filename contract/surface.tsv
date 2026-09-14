@@ -26,6 +26,10 @@ file	etc/sudoers.d/omarchy-theme-browser	regra que omarchy-guest-apply-browser-p
 file	bin/omarchy-apply-lock	escreve o PAM do lock; e o comando suportado deles, nao escrevemos o arquivo na mao	ASSUMPTIONS 6
 file	bin/omarchy-system-lock	o lock_cmd do daemon de idle do host chama este comando	ASSUMPTIONS 6
 file	shell/plugins/lock/Service.qml	o plugin que desenha a tela de bloqueio desta maquina	ASSUMPTIONS 6
+file	default/systemd/user/omarchy-sleep-lock.service	o doctor confere se este unit esta instalado: sem ele o first-run deles repete a cada login	ASSUMPTIONS 12
+file	default/systemd/user/omarchy-recover-internal-monitor.service	idem - o doctor lista os units do first-run pelo nome	ASSUMPTIONS 12
+file	default/systemd/user/omarchy-fcitx5.service	idem	ASSUMPTIONS 12
+file	install/omarchy-base.packages	omarchy-guest compara os pacotes do flavor com a base deles	ASSUMPTIONS 4
 
 grep	config/omarchy/plugins::shell/services/PluginRegistry.qml	o diretorio de plugins do usuario continua sendo esse	HOST-INVENTORY
 grep	extensions/omarchy-menu\.jsonc::shell/plugins/menu/Menu.qml	o menu continua lendo a extensao do usuario	MENU-OVERRIDES
@@ -70,3 +74,7 @@ ignore	omarchy-repo	prosa em comentario (o repositorio deles)
 ignore	omarchy-current	prosa: o link current/
 ignore	omarchy-settings	prosa: a tela de settings do shell
 ignore	omarchy-lock-password	prosa: o arquivo PAM do lock
+ignore	omarchy-sleep-lock	nome de UNIT de systemd, nao comando - a dependencia real e o .service, acima
+ignore	omarchy-recover-internal-monitor	nome de UNIT de systemd, nao comando
+ignore	omarchy-fcitx5	nome de UNIT de systemd, nao comando
+ignore	omarchy-base	e o install/omarchy-base.packages, um arquivo, nao um comando
