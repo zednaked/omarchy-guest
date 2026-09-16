@@ -128,6 +128,7 @@ printf '  markers:  %s\n' "$STATE_DIR"
 printf '%sler nao muda nada; --apply-policy escreve marcadores%s\n\n' "$DIM" "$RESET"
 
 declare -a SKIP_IDS=() SKIP_CLASSES=() SKIP_DESCS=()
+declare -a SUDO_RUNS=()
 runs=0; asks=0; skips=0; pend=0
 
 while read -r m; do
@@ -138,7 +139,9 @@ while read -r m; do
   action="$(policy_for "$m" "$class")"
   desc="$(describe "$m")"
   case $action in
-    run)  runs=$((runs+1));  printf '  %s+%s %-16s %s%s%s\n' "$GREEN" "$RESET" "[$class]" "$DIM" "$desc" "$RESET" ;;
+    run)  runs=$((runs+1));  printf '  %s+%s %-16s %s%s%s\n' "$GREEN" "$RESET" "[$class]" "$DIM" "$desc" "$RESET"
+          read_migration "$m" | grep -qE '(^|[^[:alnum:]_])(sudo|as_root)([^[:alnum:]_]|$)' &&
+            SUDO_RUNS+=("$m  $desc") ;;
     ask)  asks=$((asks+1));  printf '  %s?%s %-16s %s\n' "$YELLOW" "$RESET" "[$class]" "$desc"
           printf '      %s%s%s\n' "$DIM" "$m - decidir a mao: omarchy-guest-migrations --ref ${REF:-HEAD} e ler o script" "$RESET" ;;
     skip) skips=$((skips+1)); printf '  %s-%s %-16s %s\n' "$BLUE" "$RESET" "[$class]" "$desc"
@@ -151,6 +154,35 @@ done < <(list_migrations)
 
 printf '\n%sResumo%s  %d pendente(s): %d para rodar, %d para pular, %d para decidir a mao\n' \
   "$BOLD" "$RESET" "$pend" "$runs" "$skips" "$asks"
+
+# O SUDO SILENCIOSO, e por que ele merece um aviso proprio.
+#
+# `omarchy-migrate` roda o lote com a sua sessao. Uma migration que chama sudo
+# num terminal pede a senha e funciona. Pela SSH sem TTY, o sudo falha - e a
+# maioria delas manda o erro para /dev/null e segue com um `|| echo`. O runner
+# nao ve falha nenhuma e escreve o marcador.
+#
+# Resultado: a migration fica marcada como resolvida PARA SEMPRE sem ter feito
+# nada, e nao ha nada no estado que diga isso. Medido em 16/09/2026: o
+# `systemd-oomd` foi aprovado, a migration "rodou", o marcador foi escrito, e o
+# servico continuava `disabled`. So apareceu porque alguem conferiu o efeito em
+# vez do exit code.
+#
+# Por isso o aviso lista QUAIS sao, em vez de so dizer que existe risco: cada
+# uma delas precisa ser conferida pelo efeito depois, e apagar o marcador e o
+# unico jeito de ter outra chance.
+if (( ${#SUDO_RUNS[@]} )); then
+  printf '\n  %s!%s %d das que vao rodar chamam sudo:\n' "$YELLOW" "$RESET" "${#SUDO_RUNS[@]}"
+  for linha in "${SUDO_RUNS[@]}"; do printf '      %s%s%s\n' "$DIM" "$linha" "$RESET"; done
+  if [[ ! -t 0 ]]; then
+    printf '      %se esta sessao NAO tem TTY.%s rode `omarchy-migrate` num terminal:\n' "$RED" "$RESET"
+    printf '      %saqui o sudo falha calado, o marcador e escrito, e a migration\n' "$DIM"
+    printf '      fica resolvida sem ter feito nada.%s\n' "$RESET"
+  else
+    printf '      %sconfira o EFEITO depois, nao o exit code: elas mandam o erro do\n' "$DIM"
+    printf '      sudo para /dev/null e o marcador e escrito de qualquer forma.%s\n' "$RESET"
+  fi
+fi
 
 if (( ! APPLY )); then
   (( pend )) && printf '  %s--apply-policy escreve os marcadores dos %d que a politica pula%s\n' "$DIM" "$skips" "$RESET"
