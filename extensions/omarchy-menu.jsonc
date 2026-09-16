@@ -45,7 +45,7 @@
   "update.omarchy": {
     "icon": "󰏔",
     "label": "System",
-    "description": "Todos os pacotes, por origem, com o inventario do HyDE",
+    "description": "Todos os pacotes, por origem, com o inventario do flavor",
     "action": "omarchy-launch-floating-terminal-with-presentation 'sh -c \"for c in \\\"$OMARCHY_GUEST_UPDATER\\\" \\\"$HOME/.local/share/omarchy-guest/updater/system.update.py\\\" \\\"$HOME/.local/lib/hyde/system.update.py\\\"; do [ -n \\\"$c\\\" ] && [ -f \\\"$c\\\" ] && exec python3 \\\"$c\\\" interactive; done; echo nenhum atualizador encontrado; read _\"'"
   },
 

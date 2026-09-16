@@ -23,3 +23,4 @@ omarchy	run	so mexe no que e deles. Rodar.
 id:1787843905.sh	skip	linka as skills deles em ~/.hermes/skills. Nao ha hermes instalado aqui; se um dia houver, apagar o marcador refaz.
 id:1788662350.sh	skip	instala hooks de suspend em /usr/lib/systemd/system-sleep e um drop-in de supergfxd. Territorio do sistema, e o force-igpu mexe em GPU hibrida numa maquina cujo setup de jogos (prime-run, sem MUX) foi ajustado a mao.
 id:1788862626.sh	run	so age se houver um Elgato Cam Link 4K no barramento. Nao ha; roda e sai.
+id:1789294350.sh	skip	troca o TCP para BBR aplicando /etc/sysctl.d/99-omarchy-sysctl.conf - arquivo que vem do PACOTE deles e nao existe num checkout (conferido nas duas maquinas). O `sudo sysctl -p` falha e a linha seguinte marca `reboot-required`, uma flag falsa que nao limpa sozinha. Querendo BBR, o caminho e escrever o proprio sysctl.d, nao esta migration.

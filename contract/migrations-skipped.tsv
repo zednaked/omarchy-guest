@@ -13,3 +13,10 @@
 1788848726.sh	host-config	2026-09-09	zephyrus	Retire the stock user icon font missed by the Quattro upgrade
 1788941927.sh	pkg	2026-09-09	zephyrus	Install basecamp (basecamp-cli) via mise wrapper
 1787215483.sh	missing-tool	2026-09-09	zephyrus	Stop mise upgrades from pruning versions still in use
+1789091250.sh	pkg	2026-09-16	zephyrus	Activate the Omarchy theme for existing T3 Code installs
+1789095456.sh	missing-tool	2026-09-16	zephyrus	Remove automatic project bin directories from PATH
+1789130779.sh	missing-tool	2026-09-16	zephyrus	Keep the KEF LSX II LT USB sink from suspending
+1789294350.sh	root	2026-09-16	zephyrus	Switch TCP congestion control to BBR with fq pacing
+1789310715.sh	pkg	2026-09-16	zephyrus	Install cf (Cloudflare CLI) via mise wrapper
+1789325478.sh	missing-tool	2026-09-16	zephyrus	Install the Omarchy kernel and make it the first Limine boot entry
+1789444024.sh	pkg	2026-09-16	zephyrus	Install missing headers for the Omarchy or T2 kernel
