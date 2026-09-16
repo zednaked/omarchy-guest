@@ -1008,8 +1008,27 @@ system_all() {
   fi
 
   section "Tela de login (sddm)"
+  # ANTES de qualquer conta sobre precedencia: o sddm e mesmo quem sobe?
+  #
+  # Sem isto, numa maquina com outro display manager esta secao faz a analise
+  # inteira - tema faltando, quem vence a ordem alfabetica, "o nosso NAO tem
+  # efeito" - sobre arquivos que nenhum processo le. O aviso e verdadeiro e
+  # inutil, e manda remover arquivo por causa de uma tela que nao existe.
+  # Aconteceu em 16/09/2026: a segunda maquina roda gdm com autologin, o sddm
+  # esta `disabled`, e um /etc/sddm.conf.d/ do host antigo ficou la parecendo
+  # a ultima posse viva dele.
+  local dm_ativo=""
+  local dm
+  for dm in sddm gdm lightdm greetd ly lxdm; do
+    systemctl is-enabled "$dm" >/dev/null 2>&1 && { dm_ativo="$dm"; break; }
+  done
+
   if [[ ! -f $REPO/system/sddm/theme.conf ]]; then
     info "nada em system/sddm, pulando"
+  elif [[ -n $dm_ativo && $dm_ativo != sddm ]]; then
+    info "o display manager habilitado e $dm_ativo, nao sddm - secao pulada"
+    note "o que estiver em /etc/sddm.conf.d/ nao e lido por ninguem, inclusive"
+    note "o que um host antigo tenha deixado la"
   else
     # Um arquivo so, com prefixo numerico alto: o diretorio e lido em ordem e o
     # ultimo Current= vence. Na maquina de referencia havia DOIS arquivos
