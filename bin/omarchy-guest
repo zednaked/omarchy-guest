@@ -44,6 +44,19 @@ running() { pgrep -x "$1" >/dev/null 2>&1; }
 # Omarchy inicia - ou seja, para tudo que esta certo - assim que a posse
 # invertia. Ruido que ensina a ignorar o doctor, que e o pior defeito possivel
 # num diagnostico.
+# Um plugin do shell esta ligado quando NAO esta em `disabledPlugins` do
+# shell.json. Mesma leitura que a checagem do lock ja fazia; virou funcao quando
+# um segundo lugar precisou dela.
+#
+# Sem shell.json, o default do shell e "tudo ligado", e e o que respondemos.
+plugin_habilitado() {
+  local cfg="$HOME/.config/omarchy/shell.json"
+  [[ -f $cfg ]] || return 0
+  local desligado
+  desligado=$(sed -n '/"disabledPlugins"/,/]/p' "$cfg" | grep -c "\"${1//./\\.}\"")
+  ((desligado == 0))
+}
+
 quem_iniciou() {
   local pid cg
   pid="$(pgrep -x "$1" 2>/dev/null | head -1)"
@@ -169,7 +182,34 @@ doctor() {
   # -- who owns the entry point ---------------------------------------------
   section "Compositor config ownership"
 
-  local entry="${HYPRLAND_CONFIG:-}"
+  # A pergunta e "que arquivo o compositor VIVO carregou", e a resposta nao esta
+  # no ambiente de quem pergunta. Sao coisas diferentes: o compositor foi
+  # iniciado com um valor, e a copia da variavel no gerenciador do systemd pode
+  # andar sozinha depois - qualquer `import-environment` de um processo com o
+  # ambiente errado sobrescreve, e uma instancia aninhada de teste faz exatamente
+  # isso. Foi assim que este comando reportou "nao inverteu" numa maquina onde a
+  # cadeia do Omarchy estava carregada e funcionando - a pior mentira possivel
+  # num diagnostico, porque ela manda desfazer o que esta certo.
+  #
+  # /proc/<pid>/environ e o ambiente com que o processo foi iniciado. Para esta
+  # pergunta e a fonte certa, e nao muda depois.
+  local entry_compositor="" entry_ambiente="${HYPRLAND_CONFIG:-}" hypr_pid
+  hypr_pid="$(pgrep -x Hyprland 2>/dev/null | head -1)"
+  if [[ -n $hypr_pid && -r /proc/$hypr_pid/environ ]]; then
+    entry_compositor="$(tr '\0' '\n' < "/proc/$hypr_pid/environ" 2>/dev/null |
+                        sed -n 's/^HYPRLAND_CONFIG=//p' | head -1)"
+  fi
+
+  local entry="${entry_compositor:-$entry_ambiente}"
+
+  if [[ -n $entry_compositor && -n $entry_ambiente && $entry_compositor != "$entry_ambiente" ]]; then
+    warn "a variavel no systemd nao bate com a que o compositor carregou"
+    note "compositor (manda): $entry_compositor"
+    note "systemd  (copia):   $entry_ambiente"
+    note "so a copia esta errada; a sessao esta certa. Para alinhar:"
+    note "systemctl --user set-environment HYPRLAND_CONFIG=$entry_compositor"
+  fi
+
   if [[ -n $entry ]]; then
     # A variavel manda, mas para ONDE ela aponta e a pergunta toda. Apontando
     # para um arquivo seu, a posse esta invertida e isto e uma boa noticia -
@@ -236,6 +276,43 @@ doctor() {
   fi
 
   # -- what is already running ----------------------------------------------
+  # -- configs que os dois lados escrevem ------------------------------------
+  # Um plugin do Omarchy pode depender de um arquivo em ~/.config que o HOST
+  # tambem escreve. Ai nao ha colisao de processo nenhuma - o plugin sobe, o
+  # binario sobe, e le a config do host. O sintoma e "a funcao nao faz nada",
+  # sem erro e sem processo duplicado para acusar.
+  #
+  # Achado na segunda maquina: `omarchy.nightlight` ligado, subindo hyprsunset,
+  # que le ~/.config/hypr/hyprsunset.conf - e la estava o do HyDE, com dois
+  # blocos `profile { }` VAZIOS. Night light ligado e inerte.
+  #
+  # A lista e explicita. "Todo arquivo de $OMARCHY_PATH/config que difere do
+  # default" acusaria toda customizacao legitima, e um doctor que acusa o certo
+  # ensina a ignora-lo.
+  if [[ -n $manager ]]; then
+    section "Configs de usuario que os dois lados escrevem"
+    local rel plugin_dono cmd_fix user_cfg ship_cfg vistos=0
+    while read -r rel plugin_dono cmd_fix; do
+      [[ -n $rel ]] || continue
+      user_cfg="$HOME/.config/$rel"
+      ship_cfg="${OMARCHY_PATH:-$HOME/.local/share/omarchy}/config/$rel"
+      [[ -f $user_cfg && -f $ship_cfg ]] || continue
+      plugin_habilitado "$plugin_dono" || continue
+      vistos=$((vistos+1))
+      if cmp -s "$user_cfg" "$ship_cfg"; then
+        ok "~/.config/$rel e a versao do Omarchy ($plugin_dono le ela)"
+      else
+        warn "~/.config/$rel difere da do Omarchy, e $plugin_dono le esse arquivo"
+        note "num host, esse arquivo costuma ser o DELE - e ai o plugin le a"
+        note "config do host e parece ligado sem fazer nada"
+        note "se for customizacao sua, ignore. Para voltar a deles: $cmd_fix"
+      fi
+    done <<'CFGS'
+hypr/hyprsunset.conf omarchy.nightlight omarchy-refresh-hyprsunset
+CFGS
+    ((vistos)) || info "nenhuma das configs conhecidas se aplica aqui"
+  fi
+
   section "Collisions with what you already run"
 
   local bars=()
