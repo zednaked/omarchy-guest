@@ -176,10 +176,13 @@ background_plugin_disabled() {
   sed -n '/"disabledPlugins"/,/]/p' "$cfg" | grep -q '"omarchy\.background"'
 }
 
+# ATENCAO A ESTE `if`, e nao a um `exit`. Ate 16/09/2026 este bloco saia com
+# `exit 0` quando o plugin era o dono - e como essa e a configuracao normal, ele
+# fazia de QUALQUER secao adicionada abaixo codigo morto, nas duas maquinas, sem
+# aviso. Descoberto ao acrescentar a secao 3.
 if ! background_plugin_disabled; then
   echo "  wallpaper: dono e o plugin omarchy.background (segue o tema sozinho)"
-  exit 0
-fi
+else
 
 bg="$(readlink -f "${OMARCHY_STATE:-$HOME/.local/state/omarchy}/current/background" 2>/dev/null)"
 bg_video=""
@@ -207,6 +210,87 @@ elif [[ -n $bg_video ]]; then
   echo "  wallpaper: tema aponta para video ($(basename "$bg_video")) e nao ha imagem em"
   echo "             $theme_dir/backgrounds - wallpaper mantido como estava"
 fi
+
+fi  # fecha o `if ! background_plugin_disabled`
+
+# ---------------------------------------------------------------------------
+# 4. toolkit: icones, cursor e o nome do tema GTK
+# ---------------------------------------------------------------------------
+# O PROBLEMA e que nao ha um dono, e sim dois, lendo arquivos diferentes.
+#
+# O Omarchy escreve o icone em `gsettings org.gnome.desktop.interface
+# icon-theme`, a partir do `icons.theme` que o tema declara. O host escreve
+# `gtk-icon-theme-name` em ~/.config/gtk-3.0/settings.ini. Nenhum dos dois esta
+# errado, e nenhum sabe do outro - entao o conjunto de icones fica partido ao
+# meio pela LISTA DE APPS: GTK3 le o settings.ini e pega o do host, GTK4 e
+# libadwaita leem o gsettings e pegam o do tema.
+#
+# Medido em 16/09/2026: gsettings `Yaru-blue` (o tema `ethereal` declara isso) e
+# settings.ini `monochrome-icon-set` (do HyDE, de agosto). Nao ha erro em lugar
+# nenhum, e nao ha como notar sem comparar os dois.
+#
+# Aqui o settings.ini passa a ESPELHAR o gsettings, e o tema vira o dono unico.
+#
+# CURSOR e TEMA GTK sao outra coisa, e vale dizer: o tema do Omarchy nao declara
+# nenhum dos dois, entao nao ha o que derivar. Ficam valores do projeto, iguais
+# em toda maquina - que e o que "unificado" pode significar aqui. `Adwaita-dark`
+# como nome de tema GTK e deliberado: quem pinta a cor e o gtk.css do tema,
+# quando ele traz um; um nome de tema de terceiro por cima disso e a terceira
+# opiniao sobre a mesma janela.
+cursor_theme="${OMARCHY_GUEST_CURSOR_THEME:-Bibata-Modern-Ice}"
+cursor_size="${OMARCHY_GUEST_CURSOR_SIZE:-24}"
+gtk_theme="${OMARCHY_GUEST_GTK_THEME:-Adwaita-dark}"
+
+# Atualiza a chave se existir, acrescenta se nao - preservando o resto do
+# arquivo. As outras chaves ali sao do usuario (fonte, antialiasing, hinting) e
+# reescrever o arquivo inteiro levaria tudo junto.
+ini_set() {  # ini_set <arquivo> <chave> <valor>
+  local f="$1" k="$2" v="$3"
+  [[ -f $f ]] || { mkdir -p "$(dirname "$f")"; printf '[Settings]\n' > "$f"; }
+  grep -q '^\[Settings\]' "$f" || sed -i '1i [Settings]' "$f"
+  if grep -q "^$k=" "$f"; then
+    sed -i "s|^$k=.*|$k=$v|" "$f"
+  else
+    sed -i "/^\[Settings\]/a $k=$v" "$f"
+  fi
+}
+
+icon_theme=""
+[[ -f $theme_dir/icons.theme ]] && icon_theme="$(tr -d '[:space:]' < "$theme_dir/icons.theme")"
+
+for gtkdir in gtk-3.0 gtk-4.0; do
+  ini="$HOME/.config/$gtkdir/settings.ini"
+  # Backup uma vez so, na primeira passada: recopiar a cada troca de tema
+  # capturaria o arquivo ja reescrito como "original".
+  [[ -f $ini && ! -f $state_dir/toolkit-orig/$gtkdir-settings.ini ]] && {
+    mkdir -p "$state_dir/toolkit-orig"
+    cp "$ini" "$state_dir/toolkit-orig/$gtkdir-settings.ini"
+  }
+  [[ -n $icon_theme ]] && ini_set "$ini" gtk-icon-theme-name "$icon_theme"
+  ini_set "$ini" gtk-theme-name         "$gtk_theme"
+  ini_set "$ini" gtk-cursor-theme-name  "$cursor_theme"
+  ini_set "$ini" gtk-cursor-theme-size  "$cursor_size"
+done
+
+# O cursor do COMPOSITOR nao vem do settings.ini. Com XCURSOR_THEME por definir
+# - e num guest cujo host exportava essa variavel ela some junto com ele - quem
+# decide e ~/.icons/default/index.theme, por heranca. Sem esta parte o cursor
+# fica no que o host tinha escolhido, e o settings.ini acima so moveria o cursor
+# DENTRO dos apps GTK.
+mkdir -p "$HOME/.icons/default"
+cat > "$HOME/.icons/default/index.theme" <<CURSOR
+[Icon Theme]
+Name=Default
+Comment=Default Cursor Theme
+Inherits=$cursor_theme
+CURSOR
+
+gsettings set org.gnome.desktop.interface cursor-theme "$cursor_theme" 2>/dev/null
+gsettings set org.gnome.desktop.interface cursor-size  "$cursor_size"  2>/dev/null
+# Ao vivo, para nao precisar de logout. Falha silenciosa fora de uma sessao.
+hyprctl setcursor "$cursor_theme" "$cursor_size" >/dev/null 2>&1
+
+echo "  toolkit:   icones ${icon_theme:-(tema nao declara)}, cursor $cursor_theme $cursor_size, gtk $gtk_theme"
 
 # Este script roda como hook de theme-set: sair diferente de zero faz o
 # omarchy-hook deles imprimir "Hook failed" a cada troca de tema.

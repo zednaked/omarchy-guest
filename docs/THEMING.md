@@ -143,6 +143,49 @@ The host branch is still in `theme-apply`, guarded by a check of
 purpose. Which is the honest shape of this file: not "the host owns the
 wallpaper", but "whoever owns it, the hook must not be the second owner".
 
+### The icon set, split down the middle of your app list
+
+Two owners, two files, and neither one is wrong.
+
+Omarchy writes `gsettings org.gnome.desktop.interface icon-theme` from the
+`icons.theme` its theme declares. Your host writes `gtk-icon-theme-name` in
+`~/.config/gtk-3.0/settings.ini`. Neither knows about the other, and **which one
+an app obeys depends on its toolkit**: GTK3 reads `settings.ini`, GTK4 and
+libadwaita read GSettings. So half your windows follow the theme and half follow
+the host, and no single screenshot shows you that.
+
+Measured on the second machine, 16/09/2026: GSettings `Yaru-blue` - which is
+exactly what the active theme declares - next to `monochrome-icon-set` in a
+`settings.ini` the host wrote in August. Nothing logged it, and each half looked
+internally consistent.
+
+`theme-apply` now makes `settings.ini` mirror the theme's declaration in both
+`gtk-3.0` and `gtk-4.0`, so the theme is the single owner.
+
+### The cursor - the file nobody names
+
+The cursor is not in `settings.ini` as far as the compositor is concerned. The
+`gtk-cursor-theme-name` there moves the cursor *inside GTK apps*; everywhere
+else - the desktop, the overlays, XWayland - Hyprland uses `XCURSOR_THEME`, and
+with that unset it falls back to `~/.icons/default/index.theme` and its
+`Inherits=` line.
+
+That matters on a guest specifically: a host that exported `XCURSOR_THEME` takes
+it with it when you stop loading its chain, and the fallback file - usually
+written by `nwg-look` months ago, and pointing at whatever the host's theme
+pipeline chose - silently becomes the decision-maker. Nothing changes visually
+at the moment of the inversion, which is why it is easy to call this done.
+
+`theme-apply` writes that file, GSettings and `hyprctl setcursor` together.
+
+**Cursor and GTK theme name are not derived from the theme**, and that is not an
+omission to fix later: an Omarchy theme declares neither. They are project
+values, the same on every machine, overridable with `OMARCHY_GUEST_CURSOR_THEME`,
+`OMARCHY_GUEST_CURSOR_SIZE` and `OMARCHY_GUEST_GTK_THEME`. The default GTK theme
+name is `Adwaita-dark` on purpose: what paints the colour is the theme's
+`gtk.css` where it ships one, and a third-party GTK theme on top of that is a
+third opinion about the same window.
+
 ### The boot splash and the login screen - literals, root, and the initramfs
 
 A Plymouth theme and an SDDM theme carry their colours as literals in a script
@@ -169,8 +212,8 @@ through, it was a mix.
 ## The two commands
 
 ```bash
-omarchy-guest-theme-apply    # border, terminal, and the wallpaper the host
-                             # still owns - instant, no root
+omarchy-guest-theme-apply    # border, terminal, icons, cursor, and the
+                             # wallpaper the host still owns - no root
 omarchy-guest-theme-boot     # splash and login - root, rebuilds the initramfs
 ```
 
