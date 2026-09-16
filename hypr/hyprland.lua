@@ -72,6 +72,12 @@ dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/boo
 
 -- Defaults do Omarchy: helpers (a mesa `o`), autostart, binds, envs, looknfeel,
 -- qconsole, input, windows, e o override do tema atual.
+-- ANTES da cadeia deles, porque so registra o que nascer depois dele: o
+-- `rebind.lua` embrulha `hl.bind` e guarda cada objeto por combo, para que um
+-- arquivo seu possa SUBSTITUIR um bind do Omarchy em vez de somar nele. Num
+-- Omarchy que ja tem `o.rebind` isto e inofensivo - ver hypr/README.md.
+require("hypr.rebind")
+
 require("default.hypr.omarchy")
 
 -- Os arquivos desta maquina, depois dos defaults deles: o que estiver aqui ganha.

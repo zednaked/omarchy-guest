@@ -7,6 +7,9 @@ on who owns your entry point, and getting that wrong costs a session.
 |---|---|
 | `hyprland.lua` | the entry point with ownership inverted - Omarchy as the root, the previous owner as the fallback |
 | `61-hyprland-config.conf` | the one line that makes the inversion real, for `~/.config/environment.d/` |
+| `00-guest.sh` | the same line for `~/.config/uwsm/env-hyprland.d/`, when the host **yields** the variable |
+| `99-guest.sh` | the same line for the same directory, when the host **does not** - it sorts last instead of first |
+| `rebind.lua` | `o.rebind` for an Omarchy that does not ship one - lets a file of yours replace a bind of theirs instead of stacking on it |
 | `autostart.lua` | the daemons the Omarchy shell does not cover, and the list of the ones it does |
 | `gaming.lua` | a performance toggle, because the host had one and Omarchy does not |
 | `bindings.lua` | window-manipulation defaults a guest expects: `SUPER + W` floats instead of being a second close key, `SUPER + P` screenshots, and border resize actually switched on |
@@ -24,6 +27,18 @@ first:
 Two Omarchy defaults are worth knowing about here: `SUPER + W` and `SUPER + Q`
 are bound to the *same* `close window`, and `SUPER + P` is `pseudo window`.
 
+**`o.rebind` may not exist on your Omarchy.** It is not in `helpers.lua` on the
+second machine's checkout, and `o.bind` there throws the return value of
+`hl.bind` away - which is the object carrying `:unbind()`, the only handle on a
+bind someone else created. So a file of yours loaded later has nothing to
+release, and `bindings.lua` in this directory would die on the call.
+
+`rebind.lua` here fills that in: required **before** Omarchy's chain, it wraps
+`hl.bind` and keeps every object by combo, so `rebind()` can release theirs and
+put yours in its place. Where `o.rebind` already exists, it wins and this file
+is dead weight - requiring it anyway costs nothing and keeps one config working
+on both.
+
 ## The setting that looks enabled and is not
 
 `extend_border_grab_area` defaults to 15 while `resize_on_border` defaults to
@@ -31,7 +46,7 @@ are bound to the *same* `close window`, and `SUPER + P` is `pseudo window`.
 corner does nothing. Raising `border_size` does not fix it - the grab area is
 invisible and 15px wide either way, and a zero-width border is not the problem.
 
-## The inversion, and the two ways it goes wrong
+## The inversion, and the three ways it goes wrong
 
 Editing `~/.config/hypr/hyprland.lua` does **not** invert anything. On a host
 like HyDE that file is the *user override layer*, loaded near the end of the
@@ -43,9 +58,16 @@ What inverts ownership is which file Hyprland is pointed at:
 
     HYPRLAND_CONFIG=/home/you/.config/hypr/hyprland.lua
 
-It works because the host sets its own with `${HYPRLAND_CONFIG:-...}` - only if
-nobody set it first. Check your host's env file before assuming this: a manager
-that assigns the variable unconditionally is a harder problem.
+On a host that sets its own with `${HYPRLAND_CONFIG:-...}` this works because
+`:-` means *only if nobody set it first*. **Check the effect, not the text.**
+A host can declare the `:-` and still overwrite you, and HyDE is the worked
+example: its env file has the `:-`, but it first sources
+`~/.local/lib/hyde/shell/activate`, and that file opens with
+`HYPRLAND_CONFIG=""`. By the time the `:-` is evaluated your value is gone, so
+the host's default always wins. Measured on the second machine on 16/09/2026,
+with `00-guest.sh` already installed and the boot still on `hyde.lua`.
+
+That is the third failure, and it has its own fix - see **the name** below.
 
 **Where you put that line decides whether it works at all**, and this cost a
 boot to learn. There are two places, and they are not equivalent:
@@ -53,22 +75,40 @@ boot to learn. There are two places, and they are not equivalent:
 | your session starts the compositor... | put it in |
 |---|---|
 | directly (a `.desktop` exec, a login shell) | `~/.config/environment.d/61-hyprland-config.conf` |
-| through **uwsm** | `~/.config/uwsm/env-hyprland.d/00-guest.sh` (both files ship here) |
+| through **uwsm** | `~/.config/uwsm/env-hyprland.d/` - and there the *name* is a second decision, below |
 
 uwsm builds the compositor's environment by running the scripts in
 `env-<compositor>.d/` in a shell that does **not** see what `environment.d`
 defined, and then exports the result over the user manager's environment. So
 with only the `environment.d` file, the host's `${HYPRLAND_CONFIG:-...}` still
 evaluates against an empty variable and its own default wins - which is exactly
-what the first boot showed. Inside uwsm's own directory the arithmetic works:
-files are read in order, `00-guest` sorts before `00-hyde`, and their `:-`
-preserves what is already set.
+what the first boot showed.
 
-Simulate it before rebooting, instead of finding out at the login screen:
+### And then the name, which is the third failure
 
-    (unset HYPRLAND_CONFIG; for f in ~/.config/uwsm/env-hyprland.d/*.sh; do . "$f"; done; echo "$HYPRLAND_CONFIG")
+Inside uwsm's own directory the files are read in order, so the name decides who
+has the last word. Which end you want depends on the host:
 
-The second failure is quieter. `hyprctl reload` re-runs the parse but **does not
+| the host... | install | because |
+|---|---|---|
+| yields (`${VAR:-default}`, and nothing wipes it earlier) | `00-guest.sh` | sorts **before** the host, and its `:-` preserves you |
+| overwrites (assigns, or wipes in a sourced script) | `99-guest.sh` | sorts **after** the host, so yours is the last assignment |
+
+Both ship here and you install one.
+
+**Simulate it before rebooting**, instead of finding out at the login screen -
+one line answers which case you are in:
+
+    (unset HYPRLAND_CONFIG HYDE_ACTIVATED
+     for f in ~/.config/uwsm/env-hyprland.d/*.sh; do . "$f"; done
+     echo "$HYPRLAND_CONFIG")
+
+The `unset HYDE_ACTIVATED` is what makes it faithful: HyDE's `activate` returns
+early when that is set, so without the unset you simulate a login that never
+happens and get the answer you wanted to see. Whatever your host's equivalent
+guard is, clear it too.
+
+The last failure is quieter. `hyprctl reload` re-runs the parse but **does not
 fire `hyprland.start`**, so every autostart from the old session is still
 running and the inversion looks complete when it is not. The next login is what
 tells the truth, and what it tells is that daemons nobody starts any more are

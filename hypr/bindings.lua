@@ -14,6 +14,12 @@
 --   omarchy menu keybindings --print
 --   hyprctl binds -j | jq -r '.[] | select(.modmask==64) | .key' | sort | uniq -d
 
+-- `o.rebind` nem sempre existe. Em checkouts mais antigos do Omarchy o helper
+-- nao esta em `helpers.lua`, e a chamada mata a cadeia inteira no login. O
+-- `rebind.lua` ao lado implementa o mesmo contrato embrulhando `hl.bind`;
+-- quando o deles existe, o deles ganha.
+local rebind = o.rebind or require("hypr.rebind").rebind
+
 -- SUPER + W: alternar flutuante/lado a lado.
 --
 -- O Omarchy binda W e Q para o MESMO `close window`
@@ -23,7 +29,7 @@
 --
 -- O SUPER + T deles continua fazendo o mesmo, de proposito: T e o mapa do
 -- Omarchy, W e a memoria muscular de quem chegou de fora.
-o.rebind("SUPER + W", "Alternar flutuante/lado a lado", hl.dsp.window.float({ action = "toggle" }))
+rebind("SUPER + W", "Alternar flutuante/lado a lado", hl.dsp.window.float({ action = "toggle" }))
 
 -- SUPER + P: screenshot de regiao.
 --
@@ -33,7 +39,7 @@ o.rebind("SUPER + W", "Alternar flutuante/lado a lado", hl.dsp.window.float({ ac
 --
 -- `rebind` e obrigatorio: SUPER + P ja e "Pseudo window" no Omarchy
 -- (tiling.lua:6). Com `bind`, os dois conviviam.
-o.rebind("SUPER + P", "Screenshot de regiao", "omarchy-capture-screenshot")
+rebind("SUPER + P", "Screenshot de regiao", "omarchy-capture-screenshot")
 
 -- SUPER + A: menu de apps.
 --
