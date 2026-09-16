@@ -573,6 +573,41 @@ install_all() {
     fi
   done
 
+  # Plugin que mudou de id deixa o antigo para tras, e `install` sozinho nao
+  # resolve: ele so copia. Numa maquina que ja tinha o nome velho, o resultado
+  # era um plugin a mais - MESMO widget, dois ids - numa pasta que o shell varre
+  # e observa. E a barra continuava mostrando o velho, porque o layout referencia
+  # o id: `/bar/layout/right[]/id` no shell.json.
+  #
+  # Renomear sem tocar no shell.json derruba o widget em silencio: o plugin novo
+  # carrega, so nao aparece. Os dois lados andam juntos aqui, com backup antes.
+  #
+  # A lista e explicita de proposito. Deduzir "o que esta instalado e nao esta no
+  # repo" apagaria plugin de terceiro - e nesta maquina tem um.
+  local -A RENOMEADOS=(
+    [zed.hyde-updates]=zed.updates
+  )
+  local velho novo cfg
+  cfg="$HOME/.config/omarchy/shell.json"
+  for velho in "${!RENOMEADOS[@]}"; do
+    novo="${RENOMEADOS[$velho]}"
+    [[ -d $dest/$velho ]] || continue
+    if ((dry)); then
+      info "would remove $velho (renomeado para $novo)"
+      grep -q "\"$velho\"" "$cfg" 2>/dev/null &&
+        info "would rewrite $velho -> $novo in shell.json"
+      continue
+    fi
+    backup "$dest/$velho"
+    rm -rf "${dest:?}/$velho"
+    ok "$velho removido (agora e $novo)"
+    if [[ -f $cfg ]] && grep -q "\"$velho\"" "$cfg"; then
+      backup "$cfg"
+      sed -i "s/\"${velho//./\\.}\"/\"$novo\"/g" "$cfg"
+      ok "shell.json: $velho -> $novo (o layout da barra referencia o id)"
+    fi
+  done
+
   section "Menu extension"
   local ext="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
   if [[ -f $REPO/extensions/omarchy-menu.jsonc ]]; then
