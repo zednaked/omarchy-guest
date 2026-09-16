@@ -86,6 +86,7 @@ require("hypr.input")      -- vazio: o default deles cobre
 require("hypr.bindings")   -- vazio: SUPER+SPACE e SUPER+ALT+SPACE ja sao deles
 require("hypr.looknfeel")  -- escrito pelo Omaland
 require("hypr.zed")        -- o que e desta maquina e de mais ninguem
+require("hypr.cursor")     -- XCURSOR_THEME/HYPRCURSOR_THEME, que o host levava embora
 require("hypr.autostart")  -- daemons que o shell do Omarchy nao cobre
 require("hypr.gaming")     -- o modo Gaming do HyDE, reescrito em 8 linhas
 

@@ -10,6 +10,7 @@ on who owns your entry point, and getting that wrong costs a session.
 | `00-guest.sh` | the same line for `~/.config/uwsm/env-hyprland.d/`, when the host **yields** the variable |
 | `99-guest.sh` | the same line for the same directory, when the host **does not** - it sorts last instead of first |
 | `rebind.lua` | `o.rebind` for an Omarchy that does not ship one - lets a file of yours replace a bind of theirs instead of stacking on it |
+| `cursor.lua` | the cursor theme at **login** - a host that exported `XCURSOR_THEME` takes it with it, and the theme hook only fixes it until the next boot |
 | `autostart.lua` | the daemons the Omarchy shell does not cover, and the list of the ones it does |
 | `gaming.lua` | a performance toggle, because the host had one and Omarchy does not |
 | `bindings.lua` | window-manipulation defaults a guest expects: `SUPER + W` floats instead of being a second close key, `SUPER + P` screenshots, and border resize actually switched on |
