@@ -78,6 +78,12 @@ describe() { read_migration "$1" | grep -m1 -oE '^echo "[^"]+"' | sed 's/^echo "
 # escrita contra a toolchain deles (mise, hermes, fprintd) aborta o lote
 # inteiro, e as que vinham depois nem sao tentadas. Num guest isso e o modo de
 # falha mais comum - eles pressupoem o proprio instalador.
+# Atribuicao de variavel comeca a linha igual a um comando comeca a linha, e
+# levar `imv_config=` como comando ausente faz esta funcao devolver sempre
+# alguma coisa. Como o teste de missing-tool roda ANTES de host-config, pkg e
+# root, a classe verdadeira nunca chegava a ser calculada. Medido em
+# 21/09/2026: 43 das 62 migrations puladas como missing-tool eram isto, e 11
+# delas eram classe omarchy - a politica manda rodar essas.
 missing_tools() { # id -> lista de comandos ausentes
   local body; body="$(read_migration "$1")"
   local defined cand out=""
@@ -90,7 +96,7 @@ missing_tools() { # id -> lista de comandos ausentes
     grep -qx "$cand" <<<"$defined" && continue
     command -v "$cand" >/dev/null 2>&1 && continue
     grep -qx "$cand" <<<"$out" || out+="$cand"$'\n'
-  done < <(grep -oE '^[[:space:]]*[a-z][a-z0-9_.-]+' <<<"$body" | tr -d ' \t' | sort -u)
+  done < <(grep -oE '^[[:space:]]*[a-z][a-z0-9_.-]+(\+?=)?' <<<"$body" | tr -d ' \t' | grep -v '=$' | sort -u)
   printf '%s' "${out%$'\n'}"
 }
 
