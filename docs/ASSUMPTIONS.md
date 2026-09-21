@@ -221,6 +221,42 @@ at install time.
 lives in `doctor` under "Runtime deps", with the `pacman -S` line ready.
 85 missing packages are not 85 problems; five of them are.
 
+### The harder half: packages that only exist in their own repo
+
+A missing package from the list above is installable - it is in the Arch repos
+or the AUR, and `pacman -S` ends the conversation. The packages Omarchy builds
+itself are not: they live in the `[omarchy]` pacman repo, which a guest does
+not have, and `omarchy-pkg-add` cannot reach them by any route.
+
+That stopped being a cosmetic difference on 2026-09-21, when three of them
+arrived at once and each one sat on a path that runs `set -e`:
+
+- **`omasnap`** replaced the screenshot code. `bin/omarchy-capture-screenshot`
+  is now a three-line wrapper around `exec omasnap` - the grim/slurp/clipboard
+  logic was deleted from the repo. A `git pull` alone takes screenshots off the
+  machine, and the key stays bound to a command that dies.
+- **`omarchy-keyring`** is installed by `omarchy-update-keyring`, a pre-step of
+  `omarchy update` itself. Its failure aborts the whole update - after the pull
+  and after a `pacman -Sy`, which is the worst place to stop.
+- **`elsewhen`**, **`owe`**, **`owe-lockfeed`** arrive through migrations, where
+  the guest already decides case by case. `owe` happens to also be in the AUR;
+  the other two are not.
+
+**Cost:** high, and it grows. Each one is a normal upstream decision - their own
+repo is where a distro puts its own software - but every command of theirs that
+starts calling a binary from it becomes a command a guest cannot run.
+
+**Fix:** a shim in the lab's `bin/`, ahead of theirs on PATH, that either keeps
+the last working version of their command (`omarchy-capture-screenshot`) or
+skips the part that needs their repo and keeps the rest (`omarchy-update-keyring`
+still refreshes `archlinux-keyring`, which the `-Syu` right after depends on).
+Both delegate to the original when `[omarchy]` is in `pacman.conf`, so the shim
+disappears the day the premise changes.
+
+The assertion that catches the next one is in `contract/surface.tsv`: what each
+shim assumes about their file, so an upstream rewrite reports as a break instead
+of as a shim that quietly went stale.
+
 ---
 
 ## 9. Privileged helpers run from the packaged path

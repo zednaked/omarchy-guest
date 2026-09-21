@@ -107,3 +107,6 @@
 1786181929.sh	root	2026-09-16	macarch	Give SSH commands the user-level tool paths via the PAM environment
 1787865477.sh	root	2026-09-16	macarch	Drop the default input group grant, which allowed unprivileged keylogging
 1788112314.sh	root	2026-09-16	macarch	Point rc-channel installs at the rc package repository
+1788129995.sh	pkg	2026-09-21	zephyrus	Replace Satty and Tensaku with Omasnap
+1789581661.sh	pkg	2026-09-21	zephyrus	Install Elsewhen, the world clock plugin
+1789764927.sh	host-config	2026-09-21	zephyrus	Enable OWE desktop video backgrounds and lock feed
