@@ -17,7 +17,10 @@ shell run on top of them.
 
 Running as the daily shell on two machines - the reference machine and a
 second install that found (and fixed) everything machine-specific the first
-one could not see.
+one could not see - and on a third with **no host at all**: a plain Arch
+install with only the shell on top, written up in
+[`docs/NO-HOST.md`](docs/NO-HOST.md) and packaged as an installer in
+[omarchy-zero](https://github.com/zednaked/omarchy-zero).
 
     omarchy-guest doctor              # read-only inspection, changes nothing
     omarchy-guest-contract --ref origin/quattro --commits   # what their next update breaks
