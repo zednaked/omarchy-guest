@@ -253,3 +253,16 @@ For the no-host repo: the "five packages" list isn't enough for a usable
 desktop. A realistic minimum adds `jq`, the PipeWire trio and `networkmanager`.
 The doctor's runtime-deps list should add at least `jq`, `nmcli`, `pactl` and
 `wpctl`.
+
+## `gtk-launch`: the launcher's hidden dependency
+
+The terminal wouldn't open from the launcher or the menu. Omarchy starts apps
+with `uwsm-app -- gtk-launch <id>.desktop`, and `gtk-launch` ships in
+**`gtk3`**, which nothing in the minimal set pulls. The only trace is in the
+user journal: `uwsm_app-daemon: Error: Command not found: "gtk-launch"`.
+The fix is `gtk3` (+19, 545 total). The doctor's runtime-deps list should
+include `gtk-launch`.
+
+Also: Omarchy wrote `~/.config/xdg-terminals.list` with `kitty.desktop` by
+itself and installed kitty. The no-host installer should write that file (with
+the terminal it chose) before the first login.
