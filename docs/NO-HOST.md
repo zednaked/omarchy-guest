@@ -266,3 +266,11 @@ include `gtk-launch`.
 Also: Omarchy wrote `~/.config/xdg-terminals.list` with `kitty.desktop` by
 itself and installed kitty. The no-host installer should write that file (with
 the terminal it chose) before the first login.
+
+## yay
+
+The user asked for yay because the flavour's updater (`zed.updates`, the
+`package_managers/` in `system.update.py`) uses it for the AUR. `base-devel`
++24 and `yay-bin` (prebuilt, no Go toolchain) +2, **571 total**. `makepkg -si`
+prompts for sudo, so non-interactively it's `makepkg -s` and then
+`sudo pacman -U`.
