@@ -274,3 +274,47 @@ The user asked for yay because the flavour's updater (`zed.updates`, the
 +24 and `yay-bin` (prebuilt, no Go toolchain) +2, **571 total**. `makepkg -si`
 prompts for sudo, so non-interactively it's `makepkg -s` and then
 `sudo pacman -U`.
+
+## Packaged paths and missing commands: a sweep
+
+**The bug the user hit:** `omarchy-theme-set-browser-policy: not found` on
+every theme change. `omarchy-theme-set-browser` escalates with
+`sudo /usr/bin/omarchy-theme-set-browser-policy`, a hard-coded
+`PACKAGED_PATH`, because the sudoers rule has to name a root-owned path. A
+checkout has no such file. The fix already exists here:
+`sudo omarchy-guest-apply-browser-policy`. A symlink into the checkout would be
+a privilege escalation (root running a user-writable file). A root-owned copy
+is correct, but it **goes stale on every Omarchy update**, so the safe-update
+procedure must re-run it.
+
+**Every `/usr/bin/omarchy-*` the checkout names** (14). The ones that matter
+without a package: `theme-set-browser-policy` (every theme change),
+`omarchy-dns` (menu → DNS; same `sudo PACKAGED_PATH` pattern, root copy
+installed), and the three user units (see above). The rest are pacman hooks,
+factory reset, fingerprint PAM, windows-vm and upgrade-to-quattro, which don't
+apply to a checkout.
+
+**Commands the shell calls that the minimal set lacks.** For each of the 128
+`omarchy-base.packages` entries not installed, `pacman -Fl` lists its
+binaries (483), and they're ranked by how many files in `bin/`, `shell/` and
+`default/hypr/` call them. Ignoring English-word false positives (`not`,
+`import`, `display`…), the desktop core was missing:
+
+| command | package | breaks |
+|---|---|---|
+| `gtk-launch` | gtk3 | **every app launch** from the launcher (found earlier) |
+| `udiskie` | udiskie | their autostart, every login |
+| `slurp`, `grim`, `hyprpicker` | same | screenshots, region capture, colour picker, QR/OCR capture |
+| `wl-copy`/`wl-paste` | wl-clipboard | copy after capture, paste-file, emoji insert |
+| `brightnessctl` | brightnessctl | brightness keys |
+| `hyprsunset` | hyprsunset | night light |
+| `magick` | imagemagick | bar text colour, plymouth set/preview |
+| `less` | less | pagers in their terminals |
+
+Installed (+10, plus +8 udiskie, 595 total, counting two packages the user
+added by hand). Left out: bluez (no adapter), power-profiles-daemon (their
+scripts handle absence) and the app layer.
+
+**For the doctor:** these are the real runtime deps of a *usable* desktop, not
+five. The sweep itself (`comm` against `omarchy-base.packages`, `pacman -Fl`,
+reference count) could be a `doctor --deep`.
