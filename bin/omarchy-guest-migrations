@@ -21,7 +21,7 @@
 set -uo pipefail
 
 VERSION="0.1.0"
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 GUEST_ROOT="$(cd "$here/.." && pwd)"
 POLICY="$GUEST_ROOT/contract/migration-policy.tsv"
 LEDGER="$GUEST_ROOT/contract/migrations-skipped.tsv"
@@ -84,8 +84,14 @@ describe() { read_migration "$1" | grep -m1 -oE '^echo "[^"]+"' | sed 's/^echo "
 # root, a classe verdadeira nunca chegava a ser calculada. Medido em
 # 21/09/2026: 43 das 62 migrations puladas como missing-tool eram isto, e 11
 # delas eram classe omarchy - a politica manda rodar essas.
+#
+# Duas outras leituras falsas, achadas no lote de 29/09/2026: um programa jq
+# entre aspas simples (`def rename:` ... `end`) e um rotulo de case que era um
+# sha256 (`c0c1...|bac8...)`). Aspas simples saem antes da varredura - bash
+# nao escapa nada dentro delas, entao o casamento e exato - e um nome seguido
+# de `|` ou `)` e rotulo de case, nao comando.
 missing_tools() { # id -> lista de comandos ausentes
-  local body; body="$(read_migration "$1")"
+  local body; body="$(read_migration "$1" | perl -0pe "s/'[^']*'/''/g")"
   local defined cand out=""
   defined=$(grep -oE '^[a-z_][a-z0-9_]*\(\)' <<<"$body" | tr -d '()')
   while read -r cand; do
@@ -96,7 +102,7 @@ missing_tools() { # id -> lista de comandos ausentes
     grep -qx "$cand" <<<"$defined" && continue
     command -v "$cand" >/dev/null 2>&1 && continue
     grep -qx "$cand" <<<"$out" || out+="$cand"$'\n'
-  done < <(grep -oE '^[[:space:]]*[a-z][a-z0-9_.-]+(\+?=)?' <<<"$body" | tr -d ' \t' | grep -v '=$' | sort -u)
+  done < <(grep -oE '^[[:space:]]*[a-z][a-z0-9_.-]+(\+?=|[|)])?' <<<"$body" | tr -d ' \t' | grep -vE '[=|)]$' | sort -u)
   printf '%s' "${out%$'\n'}"
 }
 

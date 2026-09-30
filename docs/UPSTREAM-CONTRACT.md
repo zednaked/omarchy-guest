@@ -81,19 +81,41 @@ machine.
 
 ## The workflow
 
-1. **`omarchy-guest doctor`** says how many of their commits landed since the
-   ref we last verified. It only reads what is already fetched.
-2. **`omarchy-guest-contract --ref <ref> --commits`** filters their log down to
-   the commits that touch our surface - on the September 2026 batch, 15 of 57.
-   Read those 15.
-3. **Fix what broke**, and when the fix teaches something new, add the
-   assertion that would have caught it to `contract/surface.tsv`. A break we
-   found by hand and did not encode is a break we will find by hand again.
-4. **Let the update in**, restart the shell, run `omarchy-guest doctor` on the
-   live session.
-5. **Move the pin** in `contract/verified` to the ref you just verified. Only
-   after the session came back up - the pin means "this ran here", not "this
-   looked fine in a diff".
+`omarchy-guest update` is the workflow; each step is a gate that stops the
+rest instead of an item on a list.
+
+    omarchy-guest update              # fetch + gates, read-only
+    omarchy-guest update --apply      # gates, ff-only pull, migrations, install, shell restart, doctor
+    omarchy-guest update --pin        # after looking at the live session: move contract/verified
+    omarchy-guest update --rollback   # back to the ref from before the last --apply
+
+The gates, in order:
+
+1. **Checkout** - clean tree, fast-forward possible. On a machine installed by
+   omarchy-zero the checkout is detached at the pin; the target is then
+   `origin/quattro` by name.
+2. **Contract** - `omarchy-guest-contract --ref <upstream> --commits`. A break
+   closes the gate. **Fix it**, and add the assertion that would have caught
+   it to `contract/surface.tsv`: a break found by hand and not encoded is a
+   break found by hand again.
+3. **Migrations** - every pending one has to have an action. One classified
+   `root` needs an `id:` line in `contract/migration-policy.tsv`, with the
+   reason checked on the machine, not read from the title.
+4. **Rewritten skips** - a migration we skipped and they later rewrote is
+   flagged: the marker keeps it skipped forever, and the reason may no longer
+   hold (1788163635, 29/09/2026: skipped for calling `/usr/bin/...`, rewritten
+   to call `$OMARCHY_PATH/bin/...`). Not a gate - a re-read.
+5. **TTY** - `--apply` refuses migrations that call `sudo` without a terminal;
+   there the sudo fails silently and the marker is written anyway.
+
+The pin moves only with `--pin`, only when the doctor on the live session has
+no blocker - it means "this ran here", not "this looked fine in a diff".
+Every `--apply` is logged in `~/.local/state/omarchy-guest/updates.tsv`, which
+is where `--rollback` reads the previous ref from. Migrations do not roll back.
+
+**Each update should leave the pipeline better than it found it.** Whatever
+was decided by hand this time - a policy line, a surface assertion, a
+classifier false positive - goes into the repo, so next time it is automatic.
 
 ## More than one machine
 

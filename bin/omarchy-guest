@@ -598,6 +598,8 @@ CFGS
   else
     printf '  %sclean%s - nothing here would collide.\n' "$GREEN" "$RESET"
   fi
+  # O --apply e o --pin do omarchy-guest-update decidem por isto.
+  (( PROBS == 0 ))
   printf '  %sThe map of every assumption is in docs/ASSUMPTIONS.md%s\n' "$DIM" "$RESET"
   echo
 }
@@ -611,7 +613,7 @@ CFGS
 # between machines, and this has to work on a machine we are not sitting at.
 #
 # Every destination is backed up first, with a timestamp.
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 
 # Backups vao para FORA do diretorio de origem, sempre.
 #
@@ -684,6 +686,25 @@ install_all() {
       ok "shell.json: $velho -> $novo (o layout da barra referencia o id)"
     fi
   done
+
+  # Os comandos, ao contrario dos plugins, sao LINKADOS: eles acham o repo pelo
+  # proprio caminho (readlink -f), e uma copia ficaria para tras a cada pull -
+  # o `update` rodaria a politica velha contra as migrations novas.
+  section "Commands (~/.local/bin)"
+  local bindir="$HOME/.local/bin" cmd
+  for cmd in omarchy-guest omarchy-guest-update omarchy-guest-contract omarchy-guest-migrations; do
+    if [[ $(readlink -f "$bindir/$cmd" 2>/dev/null) == "$REPO/bin/$cmd" ]]; then
+      ok "$cmd"
+    elif [[ -e $bindir/$cmd && ! -L $bindir/$cmd ]]; then
+      warn "$bindir/$cmd existe e nao e link nosso - deixado como esta"
+    elif ((dry)); then
+      info "would link $bindir/$cmd -> $REPO/bin/$cmd"
+    else
+      mkdir -p "$bindir"; ln -sfn "$REPO/bin/$cmd" "$bindir/$cmd"
+      ok "$cmd -> $REPO/bin/$cmd"
+    fi
+  done
+  [[ ":$PATH:" == *":$bindir:"* ]] || warn "$bindir nao esta no PATH"
 
   section "Menu extension"
   local ext="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
@@ -1100,6 +1121,8 @@ usage:
   omarchy-guest install [--dry-run] copy plugins and menu overrides into place
   omarchy-guest system  [--dry-run] install the half that lives outside $HOME
                                     (plymouth splash, sddm theme, /etc/issue)
+  omarchy-guest update [--apply|--pin|--rollback]
+                                    let their next update in, gate by gate
   omarchy-guest version
 
 `doctor` never writes. `install` backs up every destination first and needs no
@@ -1113,6 +1136,7 @@ case "${1:-doctor}" in
   bootstrap) shift; bootstrap_all "${1:-}" ;;
   install) shift; install_all "${1:-}" ;;
   system)  shift; system_all "${1:-}" ;;
+  update)  shift; exec "$REPO/bin/omarchy-guest-update" "$@" ;;
   version) echo "omarchy-guest $VERSION" ;;
   -h|--help|help) usage ;;
   *) usage; exit 1 ;;

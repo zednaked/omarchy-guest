@@ -23,7 +23,7 @@ install with only the shell on top, written up in
 [omarchy-zero](https://github.com/zednaked/omarchy-zero).
 
     omarchy-guest doctor              # read-only inspection, changes nothing
-    omarchy-guest-contract --ref origin/quattro --commits   # what their next update breaks
+    omarchy-guest update              # gates for their next update; --apply lets it in
     omarchy-guest install --dry-run   # show what would be written
     omarchy-guest install             # copy plugins and menu overrides into place
 

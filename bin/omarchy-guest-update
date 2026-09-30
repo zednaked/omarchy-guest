@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+# omarchy-guest-update - deixar o upstream entrar, com as travas na ordem certa.
+#
+# O fluxo de docs/UPSTREAM-CONTRACT.md tinha cinco passos a mao, em quatro
+# comandos, e a ordem importava: contrato antes do pull, politica antes do
+# omarchy-migrate, shell reiniciado antes do pin. Este comando e esse fluxo,
+# com cada passo virando uma trava que para tudo em vez de um item de lista.
+#
+#   omarchy-guest-update              # fetch + travas; so le, nada muda
+#   omarchy-guest-update --no-fetch   # idem, com o que ja foi baixado
+#   omarchy-guest-update --apply      # travas, pull, migrations, install, shell
+#   omarchy-guest-update --pin        # depois de conferir a sessao: move o pin
+#   omarchy-guest-update --rollback   # volta a arvore ao ref de antes do --apply
+#
+# Saida: 0 pronto (ou em dia), 2 alguma trava fechou, 3 erro de uso.
+set -uo pipefail
+
+VERSION="0.1.0"
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+GUEST_ROOT="$(cd "$here/.." && pwd)"
+PIN="$GUEST_ROOT/contract/verified"
+LEDGER="$GUEST_ROOT/contract/migrations-skipped.tsv"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-guest"
+LOG="$STATE/updates.tsv"
+
+if [[ -t 1 ]]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; RESET=$'\033[0m'
+  GREEN=$'\033[32m'; YELLOW=$'\033[33m'; RED=$'\033[31m'
+else
+  BOLD=""; DIM=""; RESET=""; GREEN=""; YELLOW=""; RED=""
+fi
+ok()      { printf '  %s+%s %s\n' "$GREEN"  "$RESET" "$*"; }
+warn()    { printf '  %s!%s %s\n' "$YELLOW" "$RESET" "$*"; }
+bad()     { printf '  %sx%s %s\n' "$RED"    "$RESET" "$*"; TRAVAS=$((TRAVAS+1)); }
+note()    { printf '      %s%s%s\n' "$DIM" "$*" "$RESET"; }
+section() { printf '\n%s%s%s\n' "$BOLD" "$*" "$RESET"; }
+die()     { printf '%serro:%s %s\n' "$RED" "$RESET" "$*" >&2; exit 3; }
+
+MODE=check; FETCH=1
+while (($#)); do
+  case $1 in
+    --apply)    MODE=apply; shift ;;
+    --pin)      MODE=pin; shift ;;
+    --rollback) MODE=rollback; shift ;;
+    --no-fetch) FETCH=0; shift ;;
+    -h|--help)  sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *)          die "opcao desconhecida: $1" ;;
+  esac
+done
+
+OMARCHY_PATH="${OMARCHY_PATH:-$HOME/.local/share/omarchy}"
+export OMARCHY_PATH
+git -C "$OMARCHY_PATH" rev-parse --git-dir >/dev/null 2>&1 ||
+  die "$OMARCHY_PATH nao e um checkout git - este fluxo e para o guest que clona"
+g() { git -C "$OMARCHY_PATH" "$@"; }
+
+TRAVAS=0
+# O omarchy-zero clona e faz checkout DESTACADO no ref de contract/verified: la
+# nao ha branch, e portanto nao ha @{u}. O alvo entao e o branch deles pelo
+# nome - o mesmo que o zero clonou.
+UP="$(g rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" ||
+  UP="origin/${OMARCHY_BRANCH:-quattro}"
+
+# ---------------------------------------------------------------------------
+# as travas - tudo aqui so le (fora o fetch)
+# ---------------------------------------------------------------------------
+travas() {
+  printf '%somarchy-guest update%s  v%s  (%s)\n' "$BOLD" "$RESET" "$VERSION" "$(uname -n)"
+
+  section "Checkout"
+  if (( FETCH )); then
+    if g fetch --quiet origin 2>/dev/null; then ok "fetch de $UP"
+    else warn "fetch falhou - seguindo com o que ja estava baixado"; fi
+  fi
+  HEAD_REF="$(g rev-parse --short HEAD)"
+  UP_REF="$(g rev-parse --short "$UP")"
+  NOVOS="$(g rev-list --count "HEAD..$UP")"
+
+  # Um pull que nao e fast-forward mistura trabalho nosso com o deles dentro do
+  # diretorio de onde o shell que desenha a tela sai. Qualquer coisa local ali
+  # - commit, arquivo mexido - e uma decisao que este comando nao toma.
+  if [[ -n $(g status --porcelain --untracked-files=no) ]]; then
+    bad "arquivos modificados em $OMARCHY_PATH"
+    note "git -C $OMARCHY_PATH status - guardar ou descartar antes"
+  else
+    ok "arvore limpa"
+  fi
+  if ! g merge-base --is-ancestor HEAD "$UP"; then
+    bad "HEAD tem commits que $UP nao tem - o pull nao seria fast-forward"
+  fi
+
+  if (( NOVOS == 0 )); then
+    ok "em dia com $UP ($HEAD_REF)"
+    return
+  fi
+  ok "$NOVOS commits novos: $HEAD_REF..$UP_REF"
+
+  # -- contrato ---------------------------------------------------------------
+  section "Contrato ($UP)"
+  "$here/omarchy-guest-contract" --ref "$UP" --commits --quiet
+  case $? in
+    0) ;;
+    1) warn "notas defasadas - nao trava, mas corrija a nota" ;;
+    *) bad "o upstream quebra o que o guest usa - consertar antes de deixar entrar" ;;
+  esac
+
+  # -- migrations -------------------------------------------------------------
+  section "Migrations ($UP)"
+  local mig
+  mig="$("$here/omarchy-guest-migrations" --ref "$UP" 2>&1)"
+  printf '%s\n' "$mig" | sed -n '/^  [-+?!]/,$p'
+  local asks
+  asks="$(grep -oE '[0-9]+ para decidir a mao' <<<"$mig" | grep -oE '^[0-9]+')"
+  if (( ${asks:-0} > 0 )); then
+    bad "$asks migration(s) sem decisao"
+    note "ler o script e escrever id:<arquivo> run|skip em contract/migration-policy.tsv"
+  fi
+  grep -q '(classe sem politica)' <<<"$mig" && bad "classe sem politica em contract/migration-policy.tsv"
+  SUDO_RUNS=0
+  grep -q 'chamam sudo' <<<"$mig" && SUDO_RUNS=1
+
+  # Uma migration pulada fica pulada para sempre: o marcador e o mesmo de uma
+  # que rodou. Se eles reescrevem o script depois, o motivo do skip pode ter
+  # deixado de valer - e nada avisa. Caso real, 29/09/2026: a 1788163635
+  # foi pulada como missing-tool por chamar /usr/bin/omarchy-sudo-passwordless,
+  # que num checkout nao existe; o upstream trocou para $OMARCHY_PATH/bin.
+  local m mudadas=()
+  while read -r m; do
+    m="${m#migrations/}"
+    grep -q "^$m	" "$LEDGER" 2>/dev/null && mudadas+=("$m")
+  done < <(g diff --name-only --diff-filter=M "HEAD" "$UP" -- migrations/)
+  if (( ${#mudadas[@]} )); then
+    warn "${#mudadas[@]} migration(s) que pulamos foram reescritas por eles:"
+    for m in "${mudadas[@]}"; do
+      note "$m  $(awk -F'\t' -v i="$m" '$1==i {print $2": "$5; exit}' "$LEDGER")"
+    done
+    note "reler: git -C $OMARCHY_PATH diff HEAD $UP -- migrations/<id>"
+    note "se o skip nao vale mais: apagar o marcador e a linha do ledger"
+  fi
+}
+
+veredito() {
+  section "Veredito"
+  if (( TRAVAS )); then
+    printf '  %s%d trava(s) fechada(s)%s - nada foi aplicado\n' "$RED" "$TRAVAS" "$RESET"
+    exit 2
+  fi
+}
+
+# ---------------------------------------------------------------------------
+case $MODE in
+check)
+  travas
+  veredito
+  if (( NOVOS )); then
+    printf '  %slivre%s: omarchy-guest-update --apply\n' "$GREEN" "$RESET"
+  else
+    printf '  %snada a aplicar%s\n' "$GREEN" "$RESET"
+  fi
+  ;;
+
+apply)
+  travas
+  (( NOVOS )) || { veredito; printf '  %snada a aplicar%s\n' "$GREEN" "$RESET"; exit 0; }
+  # Sem TTY o sudo de uma migration falha calado e o marcador e escrito mesmo
+  # assim - ver o comentario sobre SUDO SILENCIOSO em omarchy-guest-migrations.
+  if (( SUDO_RUNS )) && [[ ! -t 0 ]]; then
+    bad "ha migrations com sudo e esta sessao nao tem TTY - rodar num terminal"
+  fi
+  veredito
+
+  mkdir -p "$STATE"
+  [[ -f $LOG ]] || printf '# data\tmaquina\tde\tpara\n' >"$LOG"
+  printf '%s\t%s\t%s\t%s\n' "$(date -Iseconds)" "$(uname -n)" "$HEAD_REF" "$UP_REF" >>"$LOG"
+
+  section "Aplicando $HEAD_REF..$UP_REF"
+  g merge --ff-only --quiet "$UP" || die "o fast-forward falhou; a arvore continua em $HEAD_REF"
+  ok "checkout em $UP_REF  (voltar: omarchy-guest-update --rollback)"
+
+  "$here/omarchy-guest-migrations" --run || {
+    bad "omarchy-migrate parou no meio"
+    note "o lote para na primeira que falha; as seguintes nao rodaram."
+    note "ler o erro acima, decidir a migration na politica e rodar --apply de novo"
+    exit 2
+  }
+
+  "$here/omarchy-guest" install >/dev/null && ok "omarchy-guest install" ||
+    warn "omarchy-guest install falhou - rodar a mao para ver"
+
+  if command -v hyprctl >/dev/null && hyprctl version >/dev/null 2>&1; then
+    hyprctl reload >/dev/null && ok "hyprland recarregado"
+    PATH="$OMARCHY_PATH/bin:$PATH" omarchy-restart-shell && ok "shell reiniciado" ||
+      bad "o shell nao voltou - omarchy-guest-update --rollback"
+  else
+    warn "sem hyprland alcancavel - o shell novo so entra no proximo login"
+  fi
+
+  section "Doctor"
+  if "$here/omarchy-guest" doctor | sed -n '/^Verdict/,$p'; then
+    printf '\n  confira a sessao (barra, menu, atalhos) e entao: %somarchy-guest-update --pin%s\n' "$BOLD" "$RESET"
+  else
+    bad "o doctor achou bloqueios - ver omarchy-guest doctor"
+    exit 2
+  fi
+  ;;
+
+pin)
+  # O pin quer dizer "isto rodou aqui", nao "parecia bem num diff": so move se
+  # o checkout esta no ref que chegou e o doctor da sessao viva nao reclama.
+  "$here/omarchy-guest" doctor >/dev/null ||
+    die "o doctor achou bloqueios - o pin nao move"
+  ref="$(g rev-parse --short=8 HEAD)"
+  {
+    sed -n '/^#/p' "$PIN"
+    printf 'ref=%s\ndate=%s\nhost=%s\n' "$ref" "$(date -I)" "$(uname -n)"
+  } >"$PIN.tmp" && mv "$PIN.tmp" "$PIN"
+  printf '%s+%s contract/verified -> %s (%s)\n' "$GREEN" "$RESET" "$ref" "$(uname -n)"
+  printf '  %scommitar junto com o que mudou no ledger e na politica:%s\n' "$DIM" "$RESET"
+  printf '  git -C %s add contract && git -C %s commit -m "contract: verificado em %s"\n' \
+    "$GUEST_ROOT" "$GUEST_ROOT" "$ref"
+  ;;
+
+rollback)
+  [[ -s $LOG ]] || die "nenhum --apply registrado em $LOG"
+  de="$(awk -F'\t' '!/^#/ {l=$3} END {print l}' "$LOG")"
+  [[ -n $de ]] || die "nenhum --apply registrado em $LOG"
+  printf '%somarchy-guest update --rollback%s  %s -> %s\n' "$BOLD" "$RESET" "$(g rev-parse --short HEAD)" "$de"
+  # --keep recusa se houver mudanca local que o reset apagaria.
+  g reset --keep --quiet "$de" || die "reset recusado - ha mudancas locais em $OMARCHY_PATH"
+  ok "checkout em $de"
+  warn "as migrations que rodaram NAO voltam - elas nao tem desfazer"
+  if command -v hyprctl >/dev/null && hyprctl version >/dev/null 2>&1; then
+    hyprctl reload >/dev/null
+    PATH="$OMARCHY_PATH/bin:$PATH" omarchy-restart-shell && ok "shell reiniciado"
+  fi
+  ;;
+esac
