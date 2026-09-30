@@ -110,3 +110,8 @@
 1788129995.sh	pkg	2026-09-21	zephyrus	Replace Satty and Tensaku with Omasnap
 1789581661.sh	pkg	2026-09-21	zephyrus	Install Elsewhen, the world clock plugin
 1789764927.sh	host-config	2026-09-21	zephyrus	Enable OWE desktop video backgrounds and lock feed
+1790017600.sh	pkg	2026-09-25	zephyrus	Retire the Hermes that mise built; Hermes now updates itself
+1790042972.sh	pkg	2026-09-25	zephyrus	Install Elsewhen, the world clock plugin
+1788163635.sh	missing-tool	2026-09-25	zephyrus	Remove legacy temporary passwordless sudo grants
+1790539857.sh	pkg	2026-09-30	zephyrus	Install Monologue, the webcam recorder
+1790542069.sh	pkg	2026-09-30	zephyrus	Install Hype, the Markdown presentation app
