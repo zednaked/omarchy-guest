@@ -36,6 +36,10 @@ already run.
 destination with a timestamp first. It copies rather than symlinks on purpose:
 the shell scans and watches the plugin directory, and a symlinked tree is one
 more thing that can behave differently on a machine you are not sitting at.
+The commands are the exception: `install` links `omarchy-guest`,
+`omarchy-guest-update`, `omarchy-guest-contract` and `omarchy-guest-migrations`
+into `~/.local/bin`, pointing at this checkout, so a `git pull` here is all it
+takes for the next update to run with the current contract and policy.
 
 ## Layout
 
@@ -141,6 +145,18 @@ Short version:
   [Ganja-TUI](https://github.com/zednaked/Ganja-TUI) - same 35 strains, same
   procedural 70x28 ASCII art, same save format, no Rust binary and no resident
   process. Closed it costs one 60-second timer; stopped, nothing at all.)
+- **`omarchy-guest update`** - lets their next update in, gate by gate: clean
+  fast-forward, contract, a decision for every pending migration, a TTY for the
+  ones that call sudo. `--apply` pulls, runs migrations, restarts the shell and
+  runs the doctor; `--pin` moves `contract/verified` once the live session is
+  checked; `--rollback` returns the checkout to the previous ref. Each update
+  should leave something decided by hand encoded for the next one. See
+  [`docs/UPSTREAM-CONTRACT.md`](docs/UPSTREAM-CONTRACT.md).
+- **`omarchy-guest-migrations`** - classifies their pending migrations by what
+  they actually do (package, root, host config, missing tool, theirs only) and
+  applies [`contract/migration-policy.tsv`](contract/migration-policy.tsv).
+  Skipping writes the same marker their runner writes, and records why in
+  `contract/migrations-skipped.tsv`.
 - **`omarchy-guest-contract`** - checks this repo against any Omarchy ref
   without touching the installed checkout: their commands we call, the menu ids
   we override, the QML the plugins read off the third-party facade, the lists we
