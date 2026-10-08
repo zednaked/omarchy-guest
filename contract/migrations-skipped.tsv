@@ -115,3 +115,9 @@
 1788163635.sh	missing-tool	2026-09-25	zephyrus	Remove legacy temporary passwordless sudo grants
 1790539857.sh	pkg	2026-09-30	zephyrus	Install Monologue, the webcam recorder
 1790542069.sh	pkg	2026-09-30	zephyrus	Install Hype, the Markdown presentation app
+1790397381.sh	pkg	2026-10-08	zephyrus	Move OpenClaw to a self-updating install under ~/.openclaw
+1790702362.sh	pkg	2026-10-08	zephyrus	Install the compiler and Qt pieces for building Omarchy-style apps
+1790863209.sh	missing-tool	2026-10-08	zephyrus	Install Grok through mise's first-party package
+1791112479.sh	missing-tool	2026-10-08	zephyrus	Make agent account selection apply to scripts and subprocesses
+1791345484.sh	pkg	2026-10-08	zephyrus	Replace the Disk Usage TUI with Disktree
+1791403252.sh	root-manual	2026-10-08	zephyrus	Prioritize the Omarchy package repository over Arch repositories (sem [omarchy] no pacman.conf; o -Syu roda a parte)
