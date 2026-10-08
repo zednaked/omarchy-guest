@@ -197,7 +197,8 @@ apply)
 
   section "Doctor"
   if "$here/omarchy-guest" doctor | sed -n '/^Verdict/,$p'; then
-    printf '\n  confira a sessao (barra, menu, atalhos) e entao: %somarchy-guest-update --pin%s\n' "$BOLD" "$RESET"
+    printf '\n  saia e entre de novo (o login e o unico teste do arranque a frio),\n'
+    printf '  confira barra, menu e atalhos, e entao: %somarchy-guest-update --pin%s\n' "$BOLD" "$RESET"
   else
     bad "o doctor achou bloqueios - ver omarchy-guest doctor"
     exit 2
@@ -207,6 +208,20 @@ apply)
 pin)
   # O pin quer dizer "isto rodou aqui", nao "parecia bem num diff": so move se
   # o checkout esta no ref que chegou e o doctor da sessao viva nao reclama.
+  #
+  # E "rodou" inclui o LOGIN. O --apply so recarrega a config e reinicia o
+  # shell; o caminho de arranque a frio do Hyprland (hyprland.start, monitores
+  # ainda vazios) fica de fora. Em 08/10/2026 o cursor temporario do boot deles
+  # derrubou o Hyprland no login seguinte a um pin que o doctor tinha aprovado.
+  # Daqui em diante, o pin pede uma sessao que nasceu DEPOIS da arvore nova.
+  pgrep -f 'Hyprland.*--safe-mode' >/dev/null &&
+    die "o Hyprland esta em safe mode - ele caiu no login, o pin nao move"
+  movido="$(g reflog -1 --format=%ct HEAD 2>/dev/null)"
+  sig="${HYPRLAND_INSTANCE_SIGNATURE:-$(ls -t "${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr" 2>/dev/null | head -1)}"
+  nasceu="$(sed -E 's/^[^_]*_([0-9]+)_.*/\1/' <<<"$sig")"
+  if [[ $nasceu =~ ^[0-9]+$ && $movido =~ ^[0-9]+$ ]] && (( nasceu < movido )); then
+    die "esta sessao subiu antes da arvore nova ($(date -d @"$movido" '+%d/%m %H:%M')) - sair, entrar e rodar --pin de novo"
+  fi
   "$here/omarchy-guest" doctor >/dev/null ||
     die "o doctor achou bloqueios - o pin nao move"
   ref="$(g rev-parse --short=8 HEAD)"

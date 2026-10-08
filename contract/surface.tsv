@@ -72,6 +72,7 @@ newrow	update.omarchy-repo	linha nossa: abre o repositorio deles, nao existe no 
 ignore	omarchy-theme-browser	nome do arquivo em etc/sudoers.d, nao um comando
 ignore	omarchy-repo	prosa em comentario (o repositorio deles)
 ignore	omarchy-current	prosa: o link current/
+ignore	omarchy-zero	prosa: o outro repo, citado em comentario
 ignore	omarchy-settings	prosa: a tela de settings do shell
 ignore	omarchy-lock-password	prosa: o arquivo PAM do lock
 ignore	omarchy-sleep-lock	nome de UNIT de systemd, nao comando - a dependencia real e o .service, acima
@@ -80,3 +81,4 @@ ignore	omarchy-fcitx5	nome de UNIT de systemd, nao comando
 ignore	omarchy-base	e o install/omarchy-base.packages, um arquivo, nao um comando
 grep	exec omasnap::bin/omarchy-capture-screenshot	o comando deles e so a casca do omasnap - o shim do lab guarda a versao com logica propria; se eles voltarem a ter uma, o shim envelheceu	ASSUMPTIONS 8
 grep	archlinux-keyring::bin/omarchy-update-keyring	a metade que o shim do keyring copia (as chaves do Arch) continua no original	ASSUMPTIONS 8
+grep	omarchy_startup_cursor_pending == nil::default/hypr/startup-cursor.lua	o cursor temporario do boot ainda se desliga com omarchy_startup_cursor_pending = false antes dos defaults (hypr/hyprland.lua)	THEMING

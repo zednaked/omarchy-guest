@@ -78,6 +78,21 @@ dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/boo
 -- Omarchy que ja tem `o.rebind` isto e inofensivo - ver hypr/README.md.
 require("hypr.rebind")
 
+-- O CURSOR TEMPORARIO DO BOOT, desligado de proposito.
+--
+-- Desde 07/10/2026 (902fd8ae) o autostart deles carrega startup-cursor.lua:
+-- num arranque a frio troca XCURSOR_THEME por "omarchy-startup", um tema com
+-- UMA imagem, 24px, para esconder o cursor ate o shell subir. Aqui o cursor e
+-- 40 em scale 1.5; o Hyprland pediu um tamanho que o tema nao tem, ganhou uma
+-- superficie nula e abortou em CCursorBuffer 3s depois do login, caindo no
+-- safe mode sem shell (zephyrus, 08/10/2026). Reload e restart do shell nao
+-- passam por ali - so o login - e por isso o `update --apply` nao viu.
+--
+-- O portao deles e `omarchy_startup_cursor_pending == nil` no config.reloaded;
+-- `false` aqui o fecha sem editar arquivo deles. O contrato confere que o
+-- portao continua sendo esse (surface.tsv).
+omarchy_startup_cursor_pending = false
+
 require("default.hypr.omarchy")
 
 -- Os arquivos desta maquina, depois dos defaults deles: o que estiver aqui ganha.

@@ -109,7 +109,12 @@ The gates, in order:
    there the sudo fails silently and the marker is written anyway.
 
 The pin moves only with `--pin`, only when the doctor on the live session has
-no blocker - it means "this ran here", not "this looked fine in a diff".
+no blocker - it means "this ran here", not "this looked fine in a diff". And
+"ran here" includes a **login**: `--apply` only reloads the config and
+restarts the shell, which never takes Hyprland's cold-start path. `--pin`
+refuses a session that started before the checkout moved, and one in safe
+mode. Learned on 08/10/2026, when their boot-time cursor (902fd8ae) aborted
+Hyprland at the first login after a pin the doctor had approved.
 Every `--apply` is logged in `~/.local/state/omarchy-guest/updates.tsv`, which
 is where `--rollback` reads the previous ref from. Migrations do not roll back.
 
