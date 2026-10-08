@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 
 // Quadro - a board of Markdown documents, drawn as force-directed graphs or
 // read as prose.
@@ -234,7 +235,7 @@ Item {
 
   function colorOf(n) {
     var g = root.groups[n.group]
-    return g ? g.color : Color.foreground
+    return g ? g.color : Commons.Color.foreground
   }
 
   function neighborsOf(n) {
@@ -474,7 +475,7 @@ Item {
 
         Rectangle {
           anchors.fill: parent
-          color: Qt.rgba(Color.background.r, Color.background.g, Color.background.b, 0.975)
+          color: Qt.rgba(Commons.Color.background.r, Commons.Color.background.g, Commons.Color.background.b, 0.975)
 
           Row {
             id: tabs
@@ -489,13 +490,13 @@ Item {
                 width: label.implicitWidth + 26
                 radius: 5
                 color: index === root.current
-                  ? Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.12)
-                  : (hover.containsMouse ? Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.05) : "transparent")
+                  ? Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.12)
+                  : (hover.containsMouse ? Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.05) : "transparent")
                 Text {
                   id: label
                   anchors.centerIn: parent
                   text: modelData.title
-                  color: index === root.current ? Color.foreground : Color.muted
+                  color: index === root.current ? Commons.Color.foreground : Commons.Color.muted
                   font.family: root.mono
                   font.pixelSize: 12
                   font.weight: index === root.current ? Font.DemiBold : Font.Normal
@@ -515,7 +516,7 @@ Item {
             text: root.status !== "" ? root.status
                 : root.doc ? root.doc.file + "  ·  " + (root.editing ? "editando" : root.doc.mode)
                 : root.boardDir
-            color: root.status !== "" ? Color.foreground : Color.muted
+            color: root.status !== "" ? Commons.Color.foreground : Commons.Color.muted
             opacity: root.status !== "" ? 1 : 0.7
             font.family: root.mono
             font.pixelSize: 11
@@ -525,14 +526,14 @@ Item {
             id: rule
             anchors { top: tabs.bottom; left: parent.left; right: parent.right; topMargin: 14 }
             height: 1
-            color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.12)
+            color: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.12)
           }
 
           Text {
             anchors.centerIn: parent
             visible: root.docs.length === 0
             text: root.loadError !== "" ? root.loadError : "lendo..."
-            color: Color.muted
+            color: Commons.Color.muted
             font.family: root.mono
             font.pixelSize: 13
           }
@@ -545,7 +546,7 @@ Item {
               margins: 26
             }
             visible: root.editing
-            color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.04)
+            color: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.04)
             radius: 6
 
             Flickable {
@@ -557,8 +558,8 @@ Item {
                 id: editor
                 width: parent.width
                 text: root.doc && root.editing ? root.doc.raw : ""
-                color: Color.foreground
-                selectionColor: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.25)
+                color: Commons.Color.foreground
+                selectionColor: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.25)
                 font.family: root.mono
                 font.pixelSize: 13
                 wrapMode: TextEdit.WrapAnywhere
@@ -594,7 +595,7 @@ Item {
                   }
                   Text {
                     text: root.groups[modelData].label
-                    color: Color.muted
+                    color: Commons.Color.muted
                     font.family: root.mono
                     font.pixelSize: 11
                   }
@@ -635,7 +636,7 @@ Item {
                 for (i = 0; i < root.links.length; i++) {
                   var l = root.links[i]
                   var on = !focus || l.a === focus || l.b === focus
-                  ctx.strokeStyle = Color.foreground
+                  ctx.strokeStyle = Commons.Color.foreground
                   ctx.globalAlpha = on ? 0.40 : 0.09
                   ctx.lineWidth = on ? 1.5 : 1
                   ctx.beginPath(); ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); ctx.stroke()
@@ -664,7 +665,7 @@ Item {
                   if ((n.r >= 8 || n === focus) && isNear) {
                     ctx.font = (n.r >= 10 ? "600 12px " : "500 11px ") + root.mono
                     ctx.textAlign = "center"
-                    ctx.fillStyle = n === focus ? Color.foreground : Color.muted
+                    ctx.fillStyle = n === focus ? Commons.Color.foreground : Commons.Color.muted
                     ctx.fillText(n.id, n.x, n.y + n.r + 16)
                   }
                   ctx.globalAlpha = 1
@@ -714,7 +715,7 @@ Item {
               id: inspector
               anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
               width: 330
-              color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.04)
+              color: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.04)
 
               Column {
                 anchors { fill: parent; margins: 20 }
@@ -722,7 +723,7 @@ Item {
 
                 Text {
                   text: "INSPETOR"
-                  color: Color.muted
+                  color: Commons.Color.muted
                   font.family: root.mono
                   font.pixelSize: 10
                   font.letterSpacing: 1.6
@@ -733,7 +734,7 @@ Item {
                   text: "Passe o mouse sobre um ponto. Clique trava, Esc solta.\n\n"
                       + "O tamanho vem do numero de ligacoes, entao os centros aparecem sozinhos.\n\n"
                       + "E edita · Shift+E salva as posicoes · P exporta imagem"
-                  color: Color.muted
+                  color: Commons.Color.muted
                   wrapMode: Text.WordWrap
                   font.family: root.mono
                   font.pixelSize: 12
@@ -750,7 +751,7 @@ Item {
                     return (n.kind || "no") + " · " + (g ? g.label : n.group)
                          + (root.lockedNode === n ? "  · TRAVADO" : "")
                   }
-                  color: Color.muted
+                  color: Commons.Color.muted
                   font.family: root.mono
                   font.pixelSize: 10
                   font.letterSpacing: 1.2
@@ -759,7 +760,7 @@ Item {
                   width: parent.width
                   visible: !!(root.lockedNode || root.focusNode)
                   text: { var n = root.lockedNode || root.focusNode; return n ? n.id : "" }
-                  color: Color.foreground
+                  color: Commons.Color.foreground
                   wrapMode: Text.WrapAnywhere
                   font.family: root.mono
                   font.pixelSize: 15
@@ -772,7 +773,7 @@ Item {
                     return !!(n && n.note !== "")
                   }
                   text: { var n = root.lockedNode || root.focusNode; return n ? n.note : "" }
-                  color: Color.foreground
+                  color: Commons.Color.foreground
                   opacity: 0.82
                   wrapMode: Text.WordWrap
                   font.family: root.mono
@@ -793,7 +794,7 @@ Item {
                     id: riskText
                     anchors { fill: parent; margins: 10; leftMargin: 14 }
                     text: { var n = root.lockedNode || root.focusNode; return n ? n.risk : "" }
-                    color: Color.foreground
+                    color: Commons.Color.foreground
                     wrapMode: Text.WordWrap
                     font.family: root.mono
                     font.pixelSize: 12
@@ -825,7 +826,7 @@ Item {
               anchors.horizontalCenter: parent.horizontalCenter
               textFormat: Text.RichText
               wrapMode: Text.WordWrap
-              color: Color.foreground
+              color: Commons.Color.foreground
               font.family: root.mono
               font.pixelSize: 14
               text: root.doc ? root.render(root.doc.body) : ""
@@ -837,7 +838,7 @@ Item {
             text: root.editing
               ? "Ctrl+S salva · Esc descarta"
               : "Tab troca aba · E edita · Shift+E salva posicoes · P imagem · R rele · Esc fecha"
-            color: Color.muted
+            color: Commons.Color.muted
             opacity: 0.65
             font.family: root.mono
             font.pixelSize: 10

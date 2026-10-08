@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // The bar side of the board: a small mark that lights up when a document
@@ -16,7 +17,7 @@ Panel {
   moduleName: "zed.quadro"
   ipcTarget: "zed.quadro.widget"
 
-  readonly property color foreground: bar ? bar.barForeground : Color.foreground
+  readonly property color foreground: bar ? bar.barForeground : Commons.Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool alerting: Board.hasNew
 
@@ -56,7 +57,7 @@ Panel {
         Rectangle {
           visible: root.alerting
           width: 6; height: 6; radius: 3
-          color: Color.accent
+          color: Commons.Color.accent
           anchors { right: parent.right; top: parent.top; rightMargin: -1; topMargin: -1 }
 
           SequentialAnimation on opacity {

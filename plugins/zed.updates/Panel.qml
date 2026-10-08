@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // Vista do contador de atualizacoes. Todo o estado esta em UpdatesStore, que e
@@ -16,8 +17,8 @@ Panel {
   // da barra usam (Ui/WidgetButton.qml:11) e a primeira. Peguei a segunda na
   // primeira versao e o icone saiu oliva ao lado de vizinhos laranjas, lendo
   // como desabilitado.
-  readonly property color foreground: bar ? bar.barForeground : Color.foreground
-  readonly property color accent: Color.accent
+  readonly property color foreground: bar ? bar.barForeground : Commons.Color.foreground
+  readonly property color accent: Commons.Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property int total: UpdatesStore.total
@@ -101,7 +102,7 @@ Panel {
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               renderType: Text.NativeRendering
-              color: Color.background
+              color: Commons.Color.background
             }
           }
         }
