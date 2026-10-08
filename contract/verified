@@ -2,6 +2,6 @@
 # E a baseline do omarchy-guest-contract: falha que ja existia aqui e nota
 # defasada, nao regressao. So mova depois de rodar o contract e o doctor na
 # maquina, com a sessao reiniciada.
-ref=8b4eae66
-date=2026-09-30
+ref=50d687a1
+date=2026-10-08
 host=zephyrus
