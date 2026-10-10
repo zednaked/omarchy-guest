@@ -121,3 +121,8 @@
 1791112479.sh	missing-tool	2026-10-08	zephyrus	Make agent account selection apply to scripts and subprocesses
 1791345484.sh	pkg	2026-10-08	zephyrus	Replace the Disk Usage TUI with Disktree
 1791403252.sh	root-manual	2026-10-08	zephyrus	Prioritize the Omarchy package repository over Arch repositories (sem [omarchy] no pacman.conf; o -Syu roda a parte)
+1789433473.sh	root	2026-10-10	zephyrus	Enable approval for newly connected USB devices
+1790344599.sh	root	2026-10-10	zephyrus	Require approval for new Thunderbolt accessories
+1790608617.sh	root	2026-10-10	zephyrus	Repair USB approval prompts and enable portable device approvals
+1791542175.sh	pkg	2026-10-10	zephyrus	Install Gliff, the Hyprland remote desktop over SSH
+1791581004.sh	root	2026-10-10	zephyrus	Stop the boot from waiting on a black screen for the console to answer
