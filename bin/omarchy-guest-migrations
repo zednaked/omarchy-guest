@@ -67,6 +67,36 @@ list_migrations() {
   fi
 }
 
+# Os comandos deles na arvore pedida. Com --ref, `command -v` olha o PATH de
+# HOJE, e um comando que chega no mesmo pull lia como ausente: em 10/10/2026 as
+# tres migrations de USBGuard/Thunderbolt sairam `missing-tool` por chamarem
+# omarchy-setup-security-*, que so existiam no ref - o skip ia certo, pelo
+# motivo errado, e o motivo errado e o que a proxima rodada ia herdar.
+read_bin() { # nome -> corpo do comando deles na arvore pedida
+  if [[ -n $REF ]]; then
+    git -C "$OMARCHY_PATH" show "$REF:bin/$1" 2>/dev/null
+  else
+    cat "$OMARCHY_PATH/bin/$1" 2>/dev/null
+  fi
+}
+REF_BIN=""
+[[ -n $REF ]] && REF_BIN=$(git -C "$OMARCHY_PATH" ls-tree --name-only "$REF" bin/ 2>/dev/null | sed 's|bin/||')
+
+# Os omarchy-* que a migration chama e que, na arvore pedida, declaram
+# `# omarchy:requires-sudo=true` no cabecalho ou chamam sudo no corpo. O sudo
+# esta dentro deles, nao na migration: `omarchy-setup-security-usb-authorization
+# --yes` le como classe omarchy e liga o USBGuard - bloqueio de dispositivo USB
+# novo - numa maquina cujo host e dono da seguranca. O cabecalho sozinho nao
+# basta: o de Thunderbolt chama sudo tres vezes e nao declara nada.
+indirect_sudo() { # id -> lista
+  local cand
+  read_migration "$1" | perl -0pe "s/'[^']*'/''/g" |
+    grep -oE '(^|[^[:alnum:]_/-])omarchy-[a-z0-9-]+' | grep -oE 'omarchy-[a-z0-9-]+' | sort -u |
+    while read -r cand; do
+      read_bin "$cand" | grep -qE '^# omarchy:requires-sudo=true|(^|[^[:alnum:]_-])sudo ' && printf '%s\n' "$cand"
+    done
+}
+
 # A descricao e deles: toda migration abre com um echo dizendo o que faz.
 describe() { read_migration "$1" | grep -m1 -oE '^echo "[^"]+"' | sed 's/^echo "//; s/"$//'; }
 
@@ -101,6 +131,7 @@ missing_tools() { # id -> lista de comandos ausentes
     esac
     grep -qx "$cand" <<<"$defined" && continue
     command -v "$cand" >/dev/null 2>&1 && continue
+    grep -qx "$cand" <<<"$REF_BIN" && continue
     grep -qx "$cand" <<<"$out" || out+="$cand"$'\n'
   done < <(grep -oE '^[[:space:]]*[a-z][a-z0-9_.-]+(\+?=|[|)])?' <<<"$body" | tr -d ' \t' | grep -vE '[=|)]$' | sort -u)
   printf '%s' "${out%$'\n'}"
@@ -115,7 +146,7 @@ classify() { # id -> classe
   if grep -qE 'omarchy-pkg-add|omarchy-mise-install|omarchy-install-|pacman -S|yay -S|paru -S|omarchy-pkg-aur-install' <<<"$body"; then
     printf 'pkg'; return
   fi
-  if grep -qE '(^|[^a-z-])sudo |/etc/|/usr/(lib|share|bin)/|/var/lib/' <<<"$body"; then
+  if grep -qE '(^|[^a-z-])sudo |/etc/|/usr/(lib|share|bin)/|/var/lib/' <<<"$body" || [[ -n $(indirect_sudo "$1") ]]; then
     printf 'root'; return
   fi
   printf 'omarchy'
@@ -152,9 +183,11 @@ while read -r m; do
   desc="$(describe "$m")"
   case $action in
     run)  runs=$((runs+1));  printf '  %s+%s %-16s %s%s%s\n' "$GREEN" "$RESET" "[$class]" "$DIM" "$desc" "$RESET"
-          read_migration "$m" | grep -qE '(^|[^[:alnum:]_])(sudo|as_root)([^[:alnum:]_]|$)' &&
-            SUDO_RUNS+=("$m  $desc") ;;
+          { read_migration "$m" | grep -qE '(^|[^[:alnum:]_])(sudo|as_root)([^[:alnum:]_]|$)' ||
+            [[ -n $(indirect_sudo "$m") ]]; } && SUDO_RUNS+=("$m  $desc") ;;
     ask)  asks=$((asks+1));  printf '  %s?%s %-16s %s\n' "$YELLOW" "$RESET" "[$class]" "$desc"
+          via=$(indirect_sudo "$m" | tr '\n' ' ')
+          [[ -n $via ]] && printf '      %ssudo via: %s%s\n' "$DIM" "$via" "$RESET"
           printf '      %s%s%s\n' "$DIM" "$m - decidir a mao: omarchy-guest-migrations --ref ${REF:-HEAD} e ler o script" "$RESET" ;;
     skip) skips=$((skips+1)); printf '  %s-%s %-16s %s\n' "$BLUE" "$RESET" "[$class]" "$desc"
           [[ $class == missing-tool ]] &&

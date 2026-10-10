@@ -100,7 +100,12 @@ The gates, in order:
    break found by hand again.
 3. **Migrations** - every pending one has to have an action. One classified
    `root` needs an `id:` line in `contract/migration-policy.tsv`, with the
-   reason checked on the machine, not read from the title.
+   reason checked on the machine, not read from the title. The class is read
+   against the target ref, not the installed tree: a command that arrives in
+   the same pull is not a missing tool, and a migration whose only line is one
+   of their commands is `root` when that command calls sudo (10/10/2026: the
+   USBGuard and Thunderbolt migrations read as `missing-tool`, and with that
+   fixed alone, as `omarchy` - which runs).
 4. **Rewritten skips** - a migration we skipped and they later rewrote is
    flagged: the marker keeps it skipped forever, and the reason may no longer
    hold (1788163635, 29/09/2026: skipped for calling `/usr/bin/...`, rewritten
