@@ -126,3 +126,8 @@
 1790608617.sh	root	2026-10-10	zephyrus	Repair USB approval prompts and enable portable device approvals
 1791542175.sh	pkg	2026-10-10	zephyrus	Install Gliff, the Hyprland remote desktop over SSH
 1791581004.sh	root	2026-10-10	zephyrus	Stop the boot from waiting on a black screen for the console to answer
+1791367434.sh	pkg	2026-10-13	zephyrus	Configure shared input-method defaults and free desktop shortcuts
+1791403310.sh	pkg	2026-10-13	zephyrus	Install titlebars for floating workspaces
+1791708587.sh	pkg	2026-10-13	zephyrus	Install Signed, the PDF signing app
+1791723398.sh	missing-tool	2026-10-13	zephyrus	Let Neovim's current line and status line show the terminal background
+1791769486.sh	missing-tool	2026-10-13	zephyrus	Remove approval for new USB and Thunderbolt devices
