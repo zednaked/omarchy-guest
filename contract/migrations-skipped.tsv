@@ -131,3 +131,13 @@
 1791708587.sh	pkg	2026-10-13	zephyrus	Install Signed, the PDF signing app
 1791723398.sh	missing-tool	2026-10-13	zephyrus	Let Neovim's current line and status line show the terminal background
 1791769486.sh	missing-tool	2026-10-13	zephyrus	Remove approval for new USB and Thunderbolt devices
+1791147791.sh	root	2026-10-17	zephyrus	Answer ARP only for each interface's own address (sysctl.d/90-omarchy-arp.conf nao existe no guest; falharia e marcaria reboot-required)
+1791898365.sh	root	2026-10-17	zephyrus	Speed up the boot menu (Limine; o bootloader aqui e systemd-boot)
+1786967403.sh	pkg	2026-10-17	zephyrus	Install Kimi coding agent mise wrapper
+1790973240.sh	pkg	2026-10-17	zephyrus	Give the ASUS ProArt P14 (NVIDIA N1x) speakers ASUS's amplifier tuning and voicing
+1790984500.sh	pkg	2026-10-17	zephyrus	Give the N1x swap on zram, the memory tuning and realtime audio scheduling
+1791077437.sh	pkg	2026-10-17	zephyrus	Move NVIDIA N1x laptops to linux-omarchy-n1x and drop the bring-up scaffolding
+1791408113.sh	missing-tool	2026-10-17	zephyrus	Make the ASUS ProArt P14 keyboard's top row send media keys by default
+1791935188.sh	missing-tool	2026-10-17	zephyrus	Stop browsers asking to be the default behind Omarchy's link routing
+1792041364.sh	pkg	2026-10-17	zephyrus	Install Gliff on aarch64, now that Omarchy's repositories build it there
+1792202836.sh	pkg	2026-10-17	zephyrus	Let mpv and Chromium decode video on the video chip of Snapdragon laptops

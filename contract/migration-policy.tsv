@@ -40,3 +40,21 @@ id:1789433473.sh	skip	liga o USBGuard (`omarchy-setup-security-usb-authorization
 id:1790608617.sh	skip	conserta o vigia do USBGuard so se usbguard.service estiver enabled ou active - aqui e `not-found`. Pulada junto com a 1789433473, que e a que o ligaria. Se um dia o USBGuard for ligado a mao, apagar este marcador.
 id:1790344599.sh	skip	exige aprovacao para acessorio Thunderbolt novo: chama sudo e /usr/bin/omarchy-thunderbolt-authorization-admin, caminho do PACOTE deles que nao existe num checkout (conferido no zephyrus, 10/10/2026) - morreria no meio com set -e. Sem dispositivo em /sys/bus/thunderbolt, e seguranca e territorio do host.
 id:1791581004.sh	skip	a mesma condicao da 1784917531: exige `limine-mkinitcpio` e /etc/limine-entry-tool.d/omarchy-defaults.conf. O bootloader aqui e systemd-boot, sem limine - sai na terceira linha. Registrar poupa a leitura.
+id:1789928586.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1790364978.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1790517230.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1790917415.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1790917620.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1790917773.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1790950659.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1790953795.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1790984400.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1790984600.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1790984700.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1791080527.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1791134093.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1791152480.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1791784278.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1791867831.sh	run	guarda de hardware (N1x/ProArt/GB10/aarch64/Qualcomm) antes de qualquer sudo - sai sem fazer nada no x86_64. Zephyrus, 17/10/2026.
+id:1791147791.sh	skip	ARP: aplica /etc/sysctl.d/90-omarchy-arp.conf, que vem do pacote deles e nao existe num guest - o sysctl -p falha e grava reboot-required, que trava o gum confirm do fim. Zephyrus, 17/10/2026.
+id:1791898365.sh	skip	boot menu do Limine; aqui e systemd-boot - so pediria senha (sudo -v) e sairia. Zephyrus, 17/10/2026.
