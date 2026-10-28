@@ -51,12 +51,26 @@ OMARCHY_PATH="${OMARCHY_PATH:-$HOME/.local/share/omarchy}"
 
 # Le a migration da arvore pedida sem tocar no checkout: `git show`, nao
 # checkout - o shell que esta rodando sai do mesmo diretorio.
-read_migration() { # id
+# Uma migration pode ser so um `source` de outra: a 1792474908 reroda a
+# 1786643346 com outros profile_roots, a 1793069744 reroda a 1787494718 inteira.
+# Lido so o arquivo, o classificador via tres linhas e dizia `omarchy` - e a
+# segunda chama sudo, a primeira precisa do que faltava no macarch. O corpo
+# sourced vem junto, depois do proprio (o echo da descricao continua o primeiro).
+# Lote de 27/10/2026.
+read_migration() { # id [ja-lidos]
+  local body sourced seen="${2:-} $1 "
   if [[ -n $REF ]]; then
-    git -C "$OMARCHY_PATH" show "$REF:migrations/$1" 2>/dev/null
+    body=$(git -C "$OMARCHY_PATH" show "$REF:migrations/$1" 2>/dev/null)
   else
-    cat "$OMARCHY_PATH/migrations/$1" 2>/dev/null
+    body=$(cat "$OMARCHY_PATH/migrations/$1" 2>/dev/null)
   fi
+  printf '%s\n' "$body"
+  while read -r sourced; do
+    [[ -n $sourced && $seen != *" $sourced "* ]] || continue
+    read_migration "$sourced" "$seen"
+    seen+="$sourced "
+  done < <(grep -oE '^[[:space:]]*(source|\.)[[:space:]]+"?\$\{?OMARCHY_PATH\}?/migrations/[0-9]+\.sh' <<<"$body" |
+    grep -oE '[0-9]+\.sh$')
 }
 
 list_migrations() {
@@ -88,9 +102,14 @@ REF_BIN=""
 # --yes` le como classe omarchy e liga o USBGuard - bloqueio de dispositivo USB
 # novo - numa maquina cujo host e dono da seguranca. O cabecalho sozinho nao
 # basta: o de Thunderbolt chama sudo tres vezes e nao declara nada.
+#
+# Comentario nao chama nada: a 1792259038 cita o omarchy-theme-set em prosa
+# ("as omarchy-theme-set stages it") e saia `root, sudo via omarchy-theme-set`
+# sem executar comando nenhum deles (lote de 27/10/2026). Linhas de comentario
+# saem antes da varredura.
 indirect_sudo() { # id -> lista
   local cand
-  read_migration "$1" | perl -0pe "s/'[^']*'/''/g" |
+  read_migration "$1" | grep -vE '^[[:space:]]*#' | perl -0pe "s/'[^']*'/''/g" |
     grep -oE '(^|[^[:alnum:]_/-])omarchy-[a-z0-9-]+' | grep -oE 'omarchy-[a-z0-9-]+' | sort -u |
     while read -r cand; do
       read_bin "$cand" | grep -qE '^# omarchy:requires-sudo=true|(^|[^[:alnum:]_-])sudo ' && printf '%s\n' "$cand"
@@ -120,8 +139,17 @@ describe() { read_migration "$1" | grep -m1 -oE '^echo "[^"]+"' | sed 's/^echo "
 # sha256 (`c0c1...|bac8...)`). Aspas simples saem antes da varredura - bash
 # nao escapa nada dentro delas, entao o casamento e exato - e um nome seguido
 # de `|` ou `)` e rotulo de case, nao comando.
+#
+# E o corpo de um heredoc tambem nao e comando: a 1786643346 guarda um programa
+# Python em `$(cat <<'PY' ... PY)`, e `def`, `try`, `shutil.copy2` saiam como
+# ferramentas ausentes (lote de 27/10/2026). O corpo sai antes das aspas, que
+# senao comeriam o delimitador `'PY'`; a linha que abre o heredoc fica.
+# No mesmo lote, `seen[${file##*/}]=1` - atribuicao num array associativo - saia
+# como o comando `seen`: um nome colado num `[` e subscrito, nao comando.
 missing_tools() { # id -> lista de comandos ausentes
-  local body; body="$(read_migration "$1" | perl -0pe "s/'[^']*'/''/g")"
+  local body
+  body="$(read_migration "$1" |
+    perl -0pe "s/(<<-?[ \t]*(['\"]?)(\w+)\2[^\n]*\n).*?^[ \t]*\3[ \t]*\$/\$1/gms; s/'[^']*'/''/g")"
   local defined cand out=""
   defined=$(grep -oE '^[a-z_][a-z0-9_]*\(\)' <<<"$body" | tr -d '()')
   while read -r cand; do
@@ -133,7 +161,7 @@ missing_tools() { # id -> lista de comandos ausentes
     command -v "$cand" >/dev/null 2>&1 && continue
     grep -qx "$cand" <<<"$REF_BIN" && continue
     grep -qx "$cand" <<<"$out" || out+="$cand"$'\n'
-  done < <(grep -oE '^[[:space:]]*[a-z][a-z0-9_.-]+(\+?=|[|)])?' <<<"$body" | tr -d ' \t' | grep -vE '[=|)]$' | sort -u)
+  done < <(grep -oE '^[[:space:]]*[a-z][a-z0-9_.-]+(\+?=|[|)[])?' <<<"$body" | tr -d ' \t' | grep -vE '[=|)[]$' | sort -u)
   printf '%s' "${out%$'\n'}"
 }
 
