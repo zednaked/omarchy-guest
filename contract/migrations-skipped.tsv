@@ -141,3 +141,12 @@
 1791935188.sh	missing-tool	2026-10-17	zephyrus	Stop browsers asking to be the default behind Omarchy's link routing
 1792041364.sh	pkg	2026-10-17	zephyrus	Install Gliff on aarch64, now that Omarchy's repositories build it there
 1792202836.sh	pkg	2026-10-17	zephyrus	Let mpv and Chromium decode video on the video chip of Snapdragon laptops
+1791382872.sh	missing-tool	2026-10-27	zephyrus	Switch default mise tools to native lazy shims
+1791554699.sh	pkg	2026-10-27	zephyrus	Switch to Omarchy's power-profiles-daemon build with CPPC support for ARM laptops
+1792334754.sh	pkg	2026-10-27	zephyrus	Move OpenClaw to a self-updating install under ~/.openclaw
+1792343099.sh	missing-tool	2026-10-27	zephyrus	Leave Node to Omarchy's mise declaration instead of the user's config
+1792343225.sh	missing-tool	2026-10-27	zephyrus	Leave mise's upgrade pruning setting to Omarchy's config instead of the user's
+1792345511.sh	pkg	2026-10-27	zephyrus	Replace the T3 Code package with the T3 Code app, which updates itself
+1792359308.sh	pkg	2026-10-27	zephyrus	Let Chromium use the cameras of Snapdragon laptops through PipeWire
+1792504295.sh	missing-tool	2026-10-27	zephyrus	Build the lazy shims for the newly declared default coding agents
+1792507034.sh	root	2026-10-27	zephyrus	Check network connectivity against ping.omacom.io
