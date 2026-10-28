@@ -122,7 +122,7 @@
   // nos dois) isso destroi trabalho; numa maquina sem plymouth/SDDM (GDM) as
   // linhas so confundem. Escondidas nos dois casos.
   "update.config.plymouth": { "when": "false" },
-  "style.unlock": { "when": "false" },
+  "appearance.unlock": { "when": "false" },
 
   // `omarchy-refresh-hyprsunset` sobrescreve ~/.config/hypr/hyprsunset.conf -
   // num host HyDE esse arquivo e dele, ajustado ou nao.
@@ -182,7 +182,8 @@
   // O screensaver do Omarchy e ttfx + o plugin de idle deles, nenhum dos dois
   // presente/ativo aqui. Linha morta; escondida em vez de fingir.
   "system.screensaver": { "when": "false" },
-  "trigger.toggle.screensaver": { "when": "false" },
+  "trigger.toggle.screensaver-on": { "when": "false" },
+  "trigger.toggle.screensaver-off": { "when": "false" },
 
   // "Stay Awake" NAO e sobrescrito aqui de proposito. A linha original chama
   // `omarchy-toggle-idle`, e quem responde e o shim em shims/ (na frente do
@@ -211,17 +212,16 @@
   // cadeia de boot numa maquina que boota pelo caminho do host.
   "setup.direct-boot": { "when": "false" },
 
-  // "Style > Hyprland" abre looknfeel.lua. Isso esta certo onde o arquivo e
-  // FIADO - o hyprland.lua do usuario o carrega (dofile/require), como na
-  // maquina de referencia, onde o Omaland escreve nele. Existir nao basta:
-  // num guest o looknfeel.lua e orfao ate ser fiado (THEMING.md), e abrir um
-  // arquivo que nada le e o mesmo "mudei e continua igual" do painel. Onde nao
-  // esta fiado, a camada honesta e o hyprland.lua do usuario, o mesmo arquivo
-  // onde vive a fiacao do guest. A acao decide na hora, em vez de este arquivo
-  // escolher por um host.
-  "style.hyprland": {
-    "icon": "",
-    "label": "Hyprland",
-    "action": "sh -c 'f=\"$HOME/.config/hypr/looknfeel.lua\"; { [ -f \"$f\" ] && grep -q looknfeel \"$HOME/.config/hypr/hyprland.lua\"; } || f=\"$HOME/.config/hypr/hyprland.lua\"; exec omarchy-launch-config-editor \"$f\"'"
-  }
+  // Update > Kernel (`omarchy-kernel set`) escolhe o kernel padrao reescrevendo
+  // BOOT_ORDER em /etc/default/limine e rodando limine-mkinitcpio, com sudo. A
+  // cadeia de boot e do host, como a linha acima; onde nao ha Limine o set ainda
+  // faz `touch` no arquivo antes de falhar. A linha so aparece com dois kernels
+  // instalados - escondida de vez.
+  "update.kernel": { "when": "false" }
+
+  // "Style > Hyprland" (que abria looknfeel.lua, orfao num guest ate ser
+  // fiado) nao existe mais desde 6bee248a. O que sobrou deles e
+  // setup.config.hyprland, que abre o hyprland.lua do usuario - a camada
+  // honesta que o nosso override escolhia quando o looknfeel nao estava fiado.
+  // Nada a sobrescrever.
 }

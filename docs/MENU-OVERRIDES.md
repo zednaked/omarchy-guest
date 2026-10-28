@@ -34,7 +34,7 @@ them is readable with `cat $(which <command>)`.
 | `update.config.hyprland` | `omarchy-refresh-hyprland` | `~/.config/hypr/`: `hyprland.lua`, `monitors.lua`, `looknfeel.lua`, `autostart.lua`, `bindings.lua`, `input.lua` |
 | `update.config.shell` | `omarchy-refresh-shell` | `~/.config/omarchy/shell.json` **and** runs `omarchy-bar defaults` - your bar layout and plugin list |
 | `update.config.plymouth` | `omarchy-refresh-plymouth` | the Plymouth boot theme |
-| `style.unlock` | `omarchy-plymouth-reset` | Plymouth **and** the SDDM login theme (`omarchy-refresh-sddm`) |
+| `appearance.unlock` | `omarchy-plymouth-reset` | Plymouth **and** the SDDM login theme (`omarchy-refresh-sddm`) |
 | `update.config.hyprsunset` | `omarchy-refresh-hyprsunset` | `~/.config/hypr/hyprsunset.conf` |
 | `setup.reset` | `omarchy-system-factory-reset` | the machine (btrfs roots only) |
 
@@ -56,7 +56,7 @@ plus Enter is enough to fire a row you meant to avoid.
   "update.config.shell":     { "when": "false" },
   "update.config.plymouth":  { "when": "false" },
   "update.config.hyprsunset":{ "when": "false" },
-  "style.unlock":            { "when": "false" },
+  "appearance.unlock":       { "when": "false" },
   "setup.reset":             { "when": "false" }
 }
 ```
@@ -75,10 +75,10 @@ host. The failure is silent state, not lost files:
 |---|---|---|
 | `system.lock` | `omarchy-shell lock lock` | with `omarchy.lock` disabled (no PAM), the IPC is a no-op: **the Lock row locks nothing**, and says nothing. False security - the worst row in the menu |
 | `trigger.toggle.idle-lock` | writes the stay-awake indicator | the only reader of that indicator is `omarchy.idle`, disabled on a guest: the row flips state and inhibits nothing |
-| `system.screensaver`, `trigger.toggle.screensaver` | ttfx + their idle plugin | both absent/disabled on a guest; dead rows |
+| `system.screensaver`, `trigger.toggle.screensaver-on`/`-off` | ttfx + their idle plugin | both absent/disabled on a guest; dead rows |
 | `update.process.hyprsunset` | kills and relaunches hyprsunset | the daemon survives, but orphaned from the host unit that supervises it |
 | `setup.direct-boot` | writes an EFI entry for the **Omarchy UKI** | boot-chain takeover on a machine that boots the host's path |
-| `style.hyprland` | opens `looknfeel.lua` in the editor | right where that file is wired into the user's `hyprland.lua` (the reference host's Omaland panel writes it); where it is not, the honest layer is the user's `hyprland.lua` |
+| `update.kernel` | `omarchy-kernel set` rewrites `BOOT_ORDER` in `/etc/default/limine` and rebuilds, with sudo | the boot chain is the host's; without Limine the set still `touch`es that file before failing |
 
 Where the host has an equivalent, **replace** the row (same icon and label,
 honest action). Where it does not, hide. The reference override file's
@@ -104,11 +104,11 @@ Prefer, in this order, the mechanism that needs the least adapting:
 3. **A host unit name.** Only `update.process.hyprsunset` needs one, because
    the honest restart is of the unit that supervises the daemon. Adapt it.
 
-`style.hyprland` decides at click time: `looknfeel.lua` if it exists **and**
-the user's `hyprland.lua` loads it, the user's `hyprland.lua` otherwise. Existing
-is not enough - on a guest `looknfeel.lua` is an orphan until wired (see
-[`THEMING.md`](THEMING.md)), and opening a file nothing reads is the same
-"I changed it and nothing changed". One override serves both kinds of host.
+`style.hyprland` used to be overridden here: it opened `looknfeel.lua`, an
+orphan on a guest until wired (see [`THEMING.md`](THEMING.md)). Upstream
+dropped the row in `6bee248a`, when Style folded into Appearance; what is left
+is `setup.config.hyprland`, which opens the user's `hyprland.lua` - the layer
+the override fell back to anyway. Nothing to override.
 
 ## Shims
 
