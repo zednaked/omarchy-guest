@@ -150,3 +150,6 @@
 1792359308.sh	pkg	2026-10-27	zephyrus	Let Chromium use the cameras of Snapdragon laptops through PipeWire
 1792504295.sh	missing-tool	2026-10-27	zephyrus	Build the lazy shims for the newly declared default coding agents
 1792507034.sh	root	2026-10-27	zephyrus	Check network connectivity against ping.omacom.io
+1789747667.sh	root	2026-10-28	zephyrus	Install rtkit so PipeWire gets realtime priority
+1793108054.sh	pkg	2026-10-28	zephyrus	Install the native Omarchy screensaver
+1793179949.sh	host-config	2026-10-28	zephyrus	Keep your own touchpad gestures instead of Omarchy's new defaults
