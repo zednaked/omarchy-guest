@@ -153,3 +153,11 @@
 1789747667.sh	root	2026-10-28	zephyrus	Install rtkit so PipeWire gets realtime priority
 1793108054.sh	pkg	2026-10-28	zephyrus	Install the native Omarchy screensaver
 1793179949.sh	host-config	2026-10-28	zephyrus	Keep your own touchpad gestures instead of Omarchy's new defaults
+1793301931.sh	pkg	2026-11-01	zephyrus	Give the ASUS Zenbook A16 (UX3607OA) working speakers, microphones and ASUS's speaker voicing
+1793315076.sh	host-config	2026-11-01	zephyrus	Load Omarchy's shell setup on Apple Silicon
+1793364921.sh	pkg	2026-11-01	zephyrus	Give the ASUS Zenbook A16 (UX3607OA) its DSP firmware, Wi-Fi board data, text-console unlock and suspend to idle
+1793452544.sh	pkg	2026-11-01	zephyrus	Install Intel hardware video decoding on GPUs named only \
+1793477875.sh	missing-tool	2026-11-01	zephyrus	Move dictation to Alt + Space, keeping F9 and Super + Ctrl + X for existing dictation users
+1793512402.sh	pkg	2026-11-01	zephyrus	Install xorg-xsetroot for X11/XWayland root cursor restoration
+1793531426.sh	root	2026-11-01	zephyrus	Keep GB10 CPU cores out of deep idle states whose wakeup latency the firmware understates
+1793545066.sh	root	2026-11-01	zephyrus	Make the ASUS Zenbook A16 keyboard's top row send media keys by default
