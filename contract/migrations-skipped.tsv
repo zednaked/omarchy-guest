@@ -161,3 +161,6 @@
 1793512402.sh	pkg	2026-11-01	zephyrus	Install xorg-xsetroot for X11/XWayland root cursor restoration
 1793531426.sh	root	2026-11-01	zephyrus	Keep GB10 CPU cores out of deep idle states whose wakeup latency the firmware understates
 1793545066.sh	root	2026-11-01	zephyrus	Make the ASUS Zenbook A16 keyboard's top row send media keys by default
+1793563475.sh	pkg	2026-11-03	zephyrus	Install omarchy-local-ai so the agents panel can offer local models that fit this machine
+1793667581.sh	pkg	2026-11-03	zephyrus	Finish Superwhisper setup for installs that came up with it unconfigured
+1793685083.sh	pkg	2026-11-03	zephyrus	Switch NVIDIA machines on linux-omarchy from DKMS to prebuilt NVIDIA modules

@@ -165,8 +165,90 @@ missing_tools() { # id -> lista de comandos ausentes
   printf '%s' "${out%$'\n'}"
 }
 
+# HARDWARE QUE NAO E ESTE.
+#
+# Boa parte das migrations deles e para uma maquina especifica (Snapdragon,
+# ZBook, Zenbook, ProArt) e abre com uma trava `omarchy-hw-*`. Pela classe elas
+# saem `root` - tem sudo no corpo - e caem em "decidir a mao", mas a decisao e
+# sempre a mesma: o hardware nao esta aqui, o script sai 0 antes do sudo. No
+# lote de 08/11/2026 foram 7 das 8 decisoes manuais.
+#
+# Aqui a trava e lida e AVALIADA nesta maquina, com os detectores da arvore
+# pedida (eles leem /sys, /proc e uname; nao escrevem nada). Dois formatos,
+# os unicos que eles usam como primeira instrucao:
+#   if ! omarchy-hw-A [|| ! omarchy-hw-B ...] [|| outra]; then exit 0; fi
+#   if omarchy-hw-A [&& omarchy-hw-B ...]; then ...corpo inteiro... fi
+# Basta UM detector dizer "nao e esta" para o script nao fazer nada. Detector
+# que erra (saida != 0 e != 1) ou argumento com expansao nao conta: na duvida a
+# migration volta para a classe que o corpo der.
+HW_DIR=""
+hw_probe_dir() {
+  [[ -n $HW_DIR ]] && { printf '%s' "$HW_DIR"; return; }
+  if [[ -n $REF ]]; then
+    HW_DIR=$(mktemp -d)
+    trap 'rm -rf "$HW_DIR"' EXIT
+    local files
+    files=$(git -C "$OMARCHY_PATH" ls-tree --name-only "$REF" bin/ | grep '^bin/omarchy-hw-')
+    # shellcheck disable=SC2086
+    [[ -n $files ]] && git -C "$OMARCHY_PATH" archive "$REF" $files | tar -x -C "$HW_DIR"
+    HW_DIR="$HW_DIR/bin"
+  else
+    HW_DIR="$OMARCHY_PATH/bin"
+  fi
+  printf '%s' "$HW_DIR"
+}
+
+hw_probe() { # "omarchy-hw-x args" -> 0 casa, 1 nao casa, 2 nao sei
+  local term=$1 cmd argstr dir
+  [[ $term =~ ^(omarchy-hw-[a-z0-9-]+)((\ +(\"[A-Za-z0-9\ ._,:-]*\"|\'[A-Za-z0-9\ ._,:-]*\'|[A-Za-z0-9._,:-]+))*)\ *$ ]] || return 2
+  cmd=${BASH_REMATCH[1]}; argstr=${BASH_REMATCH[2]}
+  local -a args=()
+  eval "args=($argstr)"  # so aspas e [A-Za-z0-9 ._,:-]: conferido no regex acima
+  dir=$(hw_probe_dir)
+  [[ -x $dir/$cmd ]] || return 2
+  env -u OMARCHY_PROC_ROOT -u OMARCHY_SYS_ROOT -u OMARCHY_IMAGE_ROOT \
+    PATH="$dir:$PATH" "$dir/$cmd" "${args[@]}" >/dev/null 2>&1
+  case $? in 0) return 0 ;; 1) return 1 ;; *) return 2 ;; esac
+}
+
+other_hw() { # id -> o detector que diz que nao e esta maquina, ou nada
+  local body cond rest term neg shape
+  body=$(read_migration "$1" | grep -vE '^[[:space:]]*(#|$)')
+  # Antes da trava so cabem o echo da descricao e atribuicoes.
+  local line n=0
+  while IFS= read -r line; do
+    n=$((n+1))
+    [[ $line =~ ^echo\ \" || $line =~ ^[a-z_][a-z0-9_]*= ]] && continue
+    break
+  done <<<"$body"
+  [[ $line =~ ^if\ +(.*omarchy-hw-.*)\;\ *then(.*)$ ]] || return 0
+  cond=${BASH_REMATCH[1]}; rest=${BASH_REMATCH[2]}
+  local after; after=$(tail -n +"$((n+1))" <<<"$body")
+  if [[ $rest =~ ^\ *exit\ 0 ]] || [[ $(head -2 <<<"$after" | tr -d ' \t' | tr '\n' ';') == "exit0;fi;" ]]; then
+    shape=exit
+  elif [[ -z ${rest// } ]] && [[ $(grep -E '^[^[:space:]]' <<<"$after") == "fi" ]]; then
+    shape=wrap
+  else
+    return 0
+  fi
+  local sep='||'; [[ $shape == wrap ]] && sep='&&'
+  [[ $shape == exit && $cond == *'&&'* ]] && return 0
+  [[ $shape == wrap && $cond == *'||'* ]] && return 0
+  while IFS= read -r term; do
+    term=$(sed -E 's/^[[:space:]]+|[[:space:]]+$//g' <<<"$term")
+    neg=0; [[ $term == '! '* ]] && { neg=1; term=${term#! }; term=${term# }; }
+    [[ $term == omarchy-hw-* ]] || continue
+    # exit: so `! detector` derruba; wrap: so `detector` sem negacao.
+    [[ $shape == exit && $neg == 0 ]] && continue
+    [[ $shape == wrap && $neg == 1 ]] && continue
+    hw_probe "$term"
+    [[ $? == 1 ]] && { printf '%s' "$term"; return 0; }
+  done <<<"${cond//"$sep"/$'\n'}"  # literal: no awk, `||` vira regex de vazio
+}
+
 classify() { # id -> classe
   local body; body="$(read_migration "$1")"
+  [[ -n $(other_hw "$1") ]] && { printf 'other-hw'; return; }
   [[ -n $(missing_tools "$1") ]] && { printf 'missing-tool'; return; }
   if grep -qE '\$HOME/\.config/(kitty|hypr|alacritty|ghostty|foot|waybar|rofi|dunst|fontconfig)|\.local/share/fonts|\.config/systemd/user|\.bashrc|\.zshrc|\.config/environment\.d' <<<"$body"; then
     printf 'host-config'; return
@@ -198,6 +280,10 @@ printf '  arvore:   %s\n' "${REF:-checkout instalado}"
 printf '  markers:  %s\n' "$STATE_DIR"
 printf '%sler nao muda nada; --apply-policy escreve marcadores%s\n\n' "$DIM" "$RESET"
 
+# Extrai os detectores uma vez, no shell principal: dentro de $(...) o cache e
+# o trap morreriam com o subshell.
+hw_probe_dir >/dev/null
+
 declare -a SKIP_IDS=() SKIP_CLASSES=() SKIP_DESCS=()
 declare -a SUDO_RUNS=()
 runs=0; asks=0; skips=0; pend=0
@@ -218,6 +304,8 @@ while read -r m; do
           [[ -n $via ]] && printf '      %ssudo via: %s%s\n' "$DIM" "$via" "$RESET"
           printf '      %s%s%s\n' "$DIM" "$m - decidir a mao: omarchy-guest-migrations --ref ${REF:-HEAD} e ler o script" "$RESET" ;;
     skip) skips=$((skips+1)); printf '  %s-%s %-16s %s\n' "$BLUE" "$RESET" "[$class]" "$desc"
+          [[ $class == other-hw ]] &&
+            printf '      %snao e esta maquina: %s%s\n' "$DIM" "$(other_hw "$m")" "$RESET"
           [[ $class == missing-tool ]] &&
             printf '      %sfalta aqui: %s%s\n' "$DIM" "$(missing_tools "$m" | tr '\n' ' ')" "$RESET"
           SKIP_IDS+=("$m"); SKIP_CLASSES+=("$class"); SKIP_DESCS+=("$desc") ;;

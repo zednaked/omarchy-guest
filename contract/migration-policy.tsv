@@ -17,6 +17,7 @@ root	ask	escreve em /etc, /usr ou /var, ou chama sudo. Nao e proibido: e caso a 
 host-config	skip	escreve config fora do territorio do Omarchy (~/.config/omarchy, ~/.local/state/omarchy). E o dono do host que decide o que ha nesses arquivos.
 missing-tool	skip	chama um comando que nao existe nesta maquina - toolchain do instalador deles. Nao e opcional pular: o `omarchy-migrate` roda com set -e e uma falha dessas aborta o lote inteiro, levando junto as migrations que vinham depois.
 omarchy	run	so mexe no que e deles. Rodar.
+other-hw	skip	abre com uma trava omarchy-hw-* que, avaliada NESTA maquina com os detectores da arvore pedida, diz que o hardware nao e este: o script sairia 0 sem fazer nada. Pular registra isso sem executar o corpo, que quase sempre tem sudo. Trocando de maquina, o ledger diz o que reler.
 
 # Decisoes por id, quando a classe nao decide sozinha. Vencem a classe.
 # id:<arquivo>	acao	por que (conferido NA MAQUINA, nao no titulo da migration)
@@ -66,3 +67,4 @@ id:1793069744.sh	run	source da 1787494718 (FIDO2) para rechecar o authfile. Sem 
 id:1789747667.sh	skip	instala rtkit (pacote, via omarchy-realtime-repair com sudo) para o PipeWire ganhar realtime e para matar o RLIMIT_RTTIME=0 que o portal herda sem ele. Aqui o realtime ja vem do grupo realtime (realtime-privileges: rtprio 98 em limits.d): o data-loop do PipeWire roda FIFO 88 e nenhum dos 386 processos tinha hard RTTIME 0. Havendo xrun ou app morto do nada: pacman -S rtkit. Zephyrus, 28/10/2026.
 id:1793531426.sh	skip	so age em NVIDIA GB10 (aarch64): `omarchy-hw-aarch64-gb10 || exit 0`. Esta maquina e x86_64 (ROG Zephyrus, Ryzen); o sudo nunca e alcancado, mas a trava de TTY le o texto.
 id:1793545066.sh	skip	so age no ASUS Zenbook A16 UX3607OA (aarch64 Qualcomm) e reconstroi o initramfs com limine-mkinitcpio. Aqui e x86_64 com systemd-boot; a condicao nunca fecha.
+id:1787481314.sh	run	so age se o tema atual for osaka-jade; aqui e matrix, sai 0 na primeira trava, antes do omarchy-theme-set (que e por onde entraria o sudo). Zephyrus, 08/11/2026.
