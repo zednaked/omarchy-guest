@@ -164,3 +164,14 @@
 1793563475.sh	pkg	2026-11-03	zephyrus	Install omarchy-local-ai so the agents panel can offer local models that fit this machine
 1793667581.sh	pkg	2026-11-03	zephyrus	Finish Superwhisper setup for installs that came up with it unconfigured
 1793685083.sh	pkg	2026-11-03	zephyrus	Switch NVIDIA machines on linux-omarchy from DKMS to prebuilt NVIDIA modules
+1787481314.sh	root	2026-11-08	zephyrus	Install Osaka Jade from its own repo for anyone still on it
+1793650506.sh	other-hw	2026-11-08	zephyrus	Install the OEM firmware package on Snapdragon machines that have one
+1793836476.sh	other-hw	2026-11-08	zephyrus	Bring up the HP ZBook Ultra G3a speakers and microphones with its own UCM profile
+1793849077.sh	other-hw	2026-11-08	zephyrus	Disable the HP ZBook Ultra G3a's phantom USB port that stalls the fingerprint reader
+1793854933.sh	other-hw	2026-11-08	zephyrus	Show the disk unlock prompt on Snapdragon X2 machines by loading their USB-C display drivers early
+1793989240.sh	other-hw	2026-11-08	zephyrus	Keep the Snapdragon device tree list current when a kernel update brings new trees
+1794044481.sh	other-hw	2026-11-08	zephyrus	Bring up the Anduril BlueChip's speakers and microphones with its own UCM profile
+1794060269.sh	other-hw	2026-11-08	zephyrus	Quiet the efivarfs mount error Snapdragon laptops print at boot
+1794065688.sh	other-hw	2026-11-08	zephyrus	Stop the watchdog timeout error Snapdragon laptops print at shutdown
+1794088337.sh	other-hw	2026-11-08	zephyrus	Turn off suspend on the ASUS Zenbook A16 (UX3607OA) until it sleeps reliably
+1794165002.sh	pkg	2026-11-08	zephyrus	Replace Evince with Papers as the document viewer
